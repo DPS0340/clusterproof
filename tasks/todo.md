@@ -2,9 +2,9 @@
 
 ## Task 1: Report contract and severity policy
 
-- [ ] Define finding, location, source, severity, and report types.
-- [ ] Parse and compare severity thresholds deterministically.
-- [ ] Verify with focused unit tests.
+- [x] Define finding, location, source, severity, and report types.
+- [x] Parse and compare severity thresholds deterministically.
+- [x] Verify with focused unit tests.
 - Dependencies: none.
 - Files: `internal/model/*`, `go.mod`.
 
