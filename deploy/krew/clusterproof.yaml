@@ -3,7 +3,7 @@ kind: Plugin
 metadata:
   name: clusterproof
 spec:
-  version: v0.2.0
+  version: v0.3.0
   homepage: https://github.com/DPS0340/clusterproof
   shortDescription: Scan workloads for security posture and evidence
   description: |
@@ -18,27 +18,27 @@ spec:
         matchLabels:
           os: darwin
           arch: amd64
-      uri: https://github.com/DPS0340/clusterproof/releases/download/v0.2.0/clusterproof_0.2.0_darwin_amd64.tar.gz
-      sha256: b08858ee29e14099af9506b9314c448a6791bb2639b2cd5fa544db5a430da015
+      uri: https://github.com/DPS0340/clusterproof/releases/download/v0.3.0/clusterproof_0.3.0_darwin_amd64.tar.gz
+      sha256: 501397ec3f3263625829c7555c892705343a01fc5f124706dd79e7f6eec9e0be
       bin: kubectl-clusterproof
     - selector:
         matchLabels:
           os: darwin
           arch: arm64
-      uri: https://github.com/DPS0340/clusterproof/releases/download/v0.2.0/clusterproof_0.2.0_darwin_arm64.tar.gz
-      sha256: 084920b3e188dc12b02756e45bfab5fed09ec6200f082fdebab6c751c0be2c6c
+      uri: https://github.com/DPS0340/clusterproof/releases/download/v0.3.0/clusterproof_0.3.0_darwin_arm64.tar.gz
+      sha256: f95da3150f80daab81803add2e047f6bdc610204ea3beab583b5cb89d0d6a3e7
       bin: kubectl-clusterproof
     - selector:
         matchLabels:
           os: linux
           arch: amd64
-      uri: https://github.com/DPS0340/clusterproof/releases/download/v0.2.0/clusterproof_0.2.0_linux_amd64.tar.gz
-      sha256: c30aa227107ed918df183c820d6bb0340c0c0a0309cbd3954959cd0c1a796034
+      uri: https://github.com/DPS0340/clusterproof/releases/download/v0.3.0/clusterproof_0.3.0_linux_amd64.tar.gz
+      sha256: b164b28cf1fcd2095c6d546c72893c0bbe9f49b177a0a762371306dd8697594e
       bin: kubectl-clusterproof
     - selector:
         matchLabels:
           os: linux
           arch: arm64
-      uri: https://github.com/DPS0340/clusterproof/releases/download/v0.2.0/clusterproof_0.2.0_linux_arm64.tar.gz
-      sha256: 4e7817094e51d713c8db1121a2f042fb53b5137aca261dd0c521f275efa1fd81
+      uri: https://github.com/DPS0340/clusterproof/releases/download/v0.3.0/clusterproof_0.3.0_linux_arm64.tar.gz
+      sha256: 05f69584a150ede25809041019c91c16ee5de28416a9b5db0d3b00d1f69c0838
       bin: kubectl-clusterproof
