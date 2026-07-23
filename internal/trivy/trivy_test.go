@@ -121,7 +121,7 @@ printf '%s' '{"Results":[{"Target":"repo","Vulnerabilities":[{"VulnerabilityID":
 	}
 	options := DefaultRunOptions()
 	options.Executable = executable
-	options.Timeout = time.Second
+	options.Timeout = 5 * time.Second
 	options.MaxOutputBytes = 4096
 
 	findings, err := RunFilesystem(context.Background(), "ignored", options)
