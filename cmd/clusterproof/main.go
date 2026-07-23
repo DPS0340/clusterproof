@@ -14,6 +14,7 @@ import (
 	"github.com/DPS0340/clusterproof/internal/evidence"
 	"github.com/DPS0340/clusterproof/internal/manifest"
 	"github.com/DPS0340/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/policyreport"
 	"github.com/DPS0340/clusterproof/internal/report"
 	"github.com/DPS0340/clusterproof/internal/rules"
 	"github.com/DPS0340/clusterproof/internal/trivy"
@@ -32,6 +33,7 @@ type scanOptions struct {
 	evidenceDir string
 	failOn      string
 	trivyJSON   string
+	policyJSON  string
 	withTrivy   bool
 }
 
@@ -95,6 +97,16 @@ func runScan(args []string, stdout, stderr io.Writer) int {
 	var findings []model.Finding
 	for _, workload := range loaded.Workloads {
 		findings = append(findings, rules.Evaluate(workload)...)
+	}
+
+	if options.policyJSON != "" {
+		imported, err := policyreport.Load(options.policyJSON, policyreport.DefaultLimits())
+		if err != nil {
+			fmt.Fprintf(stderr, "clusterproof: import PolicyReport JSON: %v\n", err)
+			return 1
+		}
+		findings = append(findings, imported.Findings...)
+		loaded.Inputs = append(loaded.Inputs, imported.Input)
 	}
 
 	if options.trivyJSON != "" {
@@ -186,14 +198,15 @@ func runScan(args []string, stdout, stderr io.Writer) int {
 func parseScanOptions(args []string) (scanOptions, bool, error) {
 	options := scanOptions{format: "table"}
 	valueFlags := map[string]*string{
-		"--format":       &options.format,
-		"--output":       &options.output,
-		"--evidence-dir": &options.evidenceDir,
-		"--fail-on":      &options.failOn,
-		"--trivy-json":   &options.trivyJSON,
-		"--kubeconfig":   &options.kubeconfig,
-		"--context":      &options.context,
-		"--namespace":    &options.namespace,
+		"--format":             &options.format,
+		"--output":             &options.output,
+		"--evidence-dir":       &options.evidenceDir,
+		"--fail-on":            &options.failOn,
+		"--trivy-json":         &options.trivyJSON,
+		"--policy-report-json": &options.policyJSON,
+		"--kubeconfig":         &options.kubeconfig,
+		"--context":            &options.context,
+		"--namespace":          &options.namespace,
 	}
 
 	for index := 0; index < len(args); index++ {
@@ -314,6 +327,7 @@ Flags:
   --evidence-dir PATH        Create immutable readiness evidence bundle
   --fail-on SEVERITY         Exit 2 for findings at or above severity
   --trivy-json PATH          Import existing Trivy JSON
+  --policy-report-json PATH  Import wgpolicyk8s PolicyReport JSON results
   --with-trivy               Explicitly run local Trivy (may update its databases)
   --kubeconfig PATH          Read workloads from the selected cluster
   --context NAME             Kubeconfig context (default current context)

@@ -155,3 +155,68 @@ func TestParseScanOptionsRequiresExactlyOneTarget(t *testing.T) {
 		})
 	}
 }
+
+func TestRunScanImportsPolicyReportWithoutLeakingMessage(t *testing.T) {
+	root := t.TempDir()
+	manifest := `
+apiVersion: v1
+kind: Pod
+metadata: {name: safe}
+spec:
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile: {type: RuntimeDefault}
+  containers:
+    - name: app
+      image: example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        readOnlyRootFilesystem: true
+        capabilities: {drop: [ALL]}
+`
+	if err := os.WriteFile(filepath.Join(root, "pod.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	policyPath := filepath.Join(t.TempDir(), "policy-report.json")
+	policyReport := `{
+	  "apiVersion":"wgpolicyk8s.io/v1alpha2",
+	  "kind":"PolicyReport",
+	  "scope":{"kind":"Pod","namespace":"default","name":"safe"},
+	  "results":[{
+	    "policy":"require-owner",
+	    "rule":"owner-label",
+	    "result":"fail",
+	    "severity":"medium",
+	    "source":"kyverno",
+	    "message":"SENSITIVE_POLICY_MESSAGE"
+	  }]
+	}`
+	if err := os.WriteFile(policyPath, []byte(policyReport), 0o600); err != nil {
+		t.Fatalf("write PolicyReport: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"scan", root,
+		"--policy-report-json", policyPath,
+		"--format", "json",
+	}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; stderr=%s", code, stderr.String())
+	}
+	var scan model.Report
+	if err := json.Unmarshal(stdout.Bytes(), &scan); err != nil {
+		t.Fatalf("invalid JSON output: %v\n%s", err, stdout.String())
+	}
+	if len(scan.Findings) != 1 || scan.Findings[0].Source != "policyreport:kyverno" {
+		t.Fatalf("unexpected findings: %#v", scan.Findings)
+	}
+	if len(scan.Inputs) != 2 {
+		t.Fatalf("inputs = %#v, want manifest and PolicyReport", scan.Inputs)
+	}
+	if strings.Contains(stdout.String(), "SENSITIVE_POLICY_MESSAGE") {
+		t.Fatalf("PolicyReport message leaked: %s", stdout.String())
+	}
+}
