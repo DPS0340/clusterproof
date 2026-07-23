@@ -15,6 +15,7 @@ the acquisition channel.
 | Capability | Community (Apache-2.0) | Team | Enterprise |
 | --- | --- | --- | --- |
 | Offline manifest and PSS-oriented checks | Included | Included | Included |
+| Read-only scan of one cluster/context per invocation | Included | Included | Included |
 | Trivy enrichment and image integrity checks | Included | Included | Included |
 | JSON, SARIF, one-run evidence bundle | Included | Included | Included |
 | CI severity threshold | Included | Included | Included |
@@ -27,9 +28,11 @@ the acquisition channel.
 | Air-gapped license and private policy distribution | — | — | Included |
 | Support SLA and custom rules | Community | Business hours | Contracted |
 
-The Team and Enterprise capabilities should live in separate private modules or a
-private control-plane repository. The public engine exposes stable interfaces but
-contains no dormant proprietary implementation.
+The Team and Enterprise capabilities live in a separate private control-plane
+repository. They consume the versioned Community JSON report contract; the public
+build does not import private packages or contain dormant proprietary
+implementation. See
+[ADR-0001](decisions/0001-open-core-boundary.md).
 
 ## Initial Pricing
 
@@ -88,6 +91,10 @@ Measure:
 
 - Community core: Apache License 2.0.
 - Commercial modules: proprietary license, offline signed entitlement supported.
+- Hosted entitlements are enforced server-side. Air-gapped entitlements are
+  signed, expiring documents; no shared license secret is embedded in a client.
+- License gates apply to aggregation and workflow, never to detections, security
+  fixes, or single-target scan correctness.
 - No telemetry by default. Optional anonymous metrics require explicit opt-in and
   a published event schema.
 - No compliance guarantee. Reports are technical evidence and require customer and
