@@ -63,12 +63,12 @@ func RunFilesystem(ctx context.Context, path string, options RunOptions) ([]mode
 
 	if err := command.Run(); err != nil {
 		if errors.Is(runContext.Err(), context.DeadlineExceeded) {
-			return nil, fmt.Errorf("Trivy scan exceeded timeout of %s", options.Timeout)
+			return nil, fmt.Errorf("trivy scan exceeded timeout of %s", options.Timeout)
 		}
-		return nil, fmt.Errorf("Trivy scan failed: %w: %s", err, stderr.String())
+		return nil, fmt.Errorf("trivy scan failed: %w: %s", err, stderr.String())
 	}
 	if stdout.exceeded {
-		return nil, fmt.Errorf("Trivy output exceeds limit of %d bytes", options.MaxOutputBytes)
+		return nil, fmt.Errorf("trivy output exceeds limit of %d bytes", options.MaxOutputBytes)
 	}
 	return Parse(bytes.NewReader(stdout.Bytes()), options.MaxOutputBytes)
 }

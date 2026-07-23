@@ -57,19 +57,19 @@ type secretFinding struct {
 // Parse normalizes bounded Trivy JSON and intentionally discards secret matches.
 func Parse(reader io.Reader, maxBytes int64) ([]model.Finding, error) {
 	if maxBytes <= 0 {
-		return nil, fmt.Errorf("Trivy output limit must be positive")
+		return nil, fmt.Errorf("trivy output limit must be positive")
 	}
 	data, err := io.ReadAll(io.LimitReader(reader, maxBytes+1))
 	if err != nil {
-		return nil, fmt.Errorf("read Trivy output: %w", err)
+		return nil, fmt.Errorf("read trivy output: %w", err)
 	}
 	if int64(len(data)) > maxBytes {
-		return nil, fmt.Errorf("Trivy output exceeds limit of %d bytes", maxBytes)
+		return nil, fmt.Errorf("trivy output exceeds limit of %d bytes", maxBytes)
 	}
 
 	var decoded report
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return nil, fmt.Errorf("decode Trivy JSON: %w", err)
+		return nil, fmt.Errorf("decode trivy JSON: %w", err)
 	}
 
 	var findings []model.Finding

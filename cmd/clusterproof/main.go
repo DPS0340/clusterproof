@@ -353,7 +353,7 @@ func parseScanOptions(args []string) (scanOptions, bool, error) {
 		return options, false, fmt.Errorf("--context and --namespace require --kubeconfig")
 	}
 	if options.kubeconfig != "" && (options.withTrivy || options.trivyJSON != "") {
-		return options, false, fmt.Errorf("Trivy options are only supported for repository scans")
+		return options, false, fmt.Errorf("trivy options are only supported for repository scans")
 	}
 	if options.trivyJSON != "" && options.withTrivy {
 		return options, false, fmt.Errorf("--trivy-json and --with-trivy cannot be combined")
