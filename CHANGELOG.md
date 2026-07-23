@@ -10,6 +10,7 @@ All notable changes to ClusterProof are documented here.
   alignment and explicit supplemental checks.
 - SOC 2 technical-readiness coverage states for assessed references, including
   no-finding observations without compliance claims.
+- Separate native assessed-rule coverage from external finding-rule observations.
 - Bounded `wgpolicyk8s.io/v1alpha2` PolicyReport result import.
 - `clusterproof ruleset show` and offline `clusterproof evidence verify`.
 

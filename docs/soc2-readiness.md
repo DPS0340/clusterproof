@@ -42,7 +42,8 @@ and can be added behind a separate adapter when its contract stabilizes.
 
 - `scan.json`: canonical findings and summary.
 - `ruleset.json`: exact native catalog evaluated by the scan.
-- `controls.json`: rule coverage and observed finding counts by reference.
+- `controls.json`: native assessed rules and observed finding-rule counts by
+  reference. External findings never masquerade as native assessed rules.
 - `metadata.json`: tool, target, timestamp, input inventory, and scope notice.
 - `bundle-manifest.json`: exact file list, byte sizes, and SHA-256 hashes.
 

@@ -122,6 +122,20 @@ func TestParseEnforcesResourceLimits(t *testing.T) {
 	if _, err := Parse(strings.NewReader(input), "report.json", limits); err == nil {
 		t.Fatal("Parse accepted too many results")
 	}
+
+	limits = DefaultLimits()
+	limits.MaxReports = 1
+	input = `{
+	  "apiVersion":"v1",
+	  "kind":"List",
+	  "items":[
+	    {"apiVersion":"wgpolicyk8s.io/v1alpha2","kind":"PolicyReport"},
+	    {"apiVersion":"wgpolicyk8s.io/v1alpha2","kind":"ClusterPolicyReport"}
+	  ]
+	}`
+	if _, err := Parse(strings.NewReader(input), "report.json", limits); err == nil {
+		t.Fatal("Parse accepted too many reports")
+	}
 }
 
 func TestLoadRejectsSymlink(t *testing.T) {

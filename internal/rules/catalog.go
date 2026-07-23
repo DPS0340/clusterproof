@@ -97,7 +97,7 @@ var defaultCatalog = Catalog{
 		},
 		{
 			ID: "CP-K8S-006", Title: "Seccomp isolation is not enforced", Category: "kubernetes-posture",
-			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Restricted"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{

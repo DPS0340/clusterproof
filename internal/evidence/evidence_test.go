@@ -15,6 +15,7 @@ type decodedControl struct {
 	Reference     string   `json:"reference"`
 	Status        string   `json:"status"`
 	AssessedRules []string `json:"assessed_rules"`
+	FindingRules  []string `json:"finding_rules"`
 	Findings      int      `json:"findings"`
 	Highest       string   `json:"highest_severity"`
 }
@@ -107,6 +108,46 @@ func TestWriteBundleRecordsNoFindingsObservedForAssessedRules(t *testing.T) {
 	}
 }
 
+func TestWriteBundleKeepsExternalFindingsOutOfNativeAssessedRules(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "evidence")
+	scan := model.Report{
+		SchemaVersion: "1",
+		GeneratedAt:   time.Date(2026, 7, 23, 1, 2, 3, 0, time.UTC),
+		ToolVersion:   "dev",
+		Findings: []model.Finding{{
+			ID:          "CP-VULN-001",
+			Severity:    model.SeverityHigh,
+			ControlRefs: []string{"SOC2:CC7", "Vulnerability-Management"},
+		}},
+	}
+
+	if err := WriteBundle(directory, scan); err != nil {
+		t.Fatalf("WriteBundle: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(directory, "controls.json"))
+	if err != nil {
+		t.Fatalf("read controls: %v", err)
+	}
+	var controls decodedCoverage
+	if err := json.Unmarshal(data, &controls); err != nil {
+		t.Fatalf("decode controls: %v", err)
+	}
+
+	soc2 := findControl(controls.Controls, "SOC2:CC7")
+	if containsString(soc2.AssessedRules, "CP-VULN-001") {
+		t.Fatalf("external finding was recorded as a native assessed rule: %#v", soc2)
+	}
+	if !containsString(soc2.FindingRules, "CP-VULN-001") ||
+		soc2.Status != "attention_required" {
+		t.Fatalf("external observation missing from coverage: %#v", soc2)
+	}
+	vulnerability := findControl(controls.Controls, "Vulnerability-Management")
+	if len(vulnerability.AssessedRules) != 0 ||
+		!containsString(vulnerability.FindingRules, "CP-VULN-001") {
+		t.Fatalf("unmapped external coverage is misleading: %#v", vulnerability)
+	}
+}
+
 func TestWriteBundleRefusesExistingDirectory(t *testing.T) {
 	directory := t.TempDir()
 	if err := WriteBundle(directory, model.Report{}); err == nil {
@@ -131,6 +172,16 @@ func TestVerifyBundleRejectsModifiedFile(t *testing.T) {
 	}
 	if err := VerifyBundle(directory); err == nil {
 		t.Fatal("VerifyBundle accepted modified evidence")
+	}
+}
+
+func TestVerifyBundleRejectsMissingFile(t *testing.T) {
+	directory := writeTestBundle(t)
+	if err := os.Remove(filepath.Join(directory, "scan.json")); err != nil {
+		t.Fatalf("remove scan: %v", err)
+	}
+	if err := VerifyBundle(directory); err == nil {
+		t.Fatal("VerifyBundle accepted a missing file")
 	}
 }
 
@@ -185,6 +236,15 @@ func TestVerifyBundleEnforcesManifestLimit(t *testing.T) {
 	}
 }
 
+func TestVerifyBundleEnforcesFileLimit(t *testing.T) {
+	directory := writeTestBundle(t)
+	limits := defaultVerifyLimits()
+	limits.MaxFileBytes = 1
+	if err := verifyBundle(directory, limits); err == nil {
+		t.Fatal("verifyBundle accepted an oversized evidence file")
+	}
+}
+
 func TestVerifyBundleRejectsMalformedHash(t *testing.T) {
 	directory := writeTestBundle(t)
 	path := filepath.Join(directory, "bundle-manifest.json")
@@ -230,6 +290,15 @@ func findControl(controls []decodedControl, reference string) decodedControl {
 		}
 	}
 	return decodedControl{}
+}
+
+func containsString(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func containsComplianceClaim(value string) bool {

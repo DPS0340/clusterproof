@@ -28,6 +28,7 @@ type controlAssessment struct {
 	Reference       string   `json:"reference"`
 	Status          string   `json:"status"`
 	AssessedRules   []string `json:"assessed_rules"`
+	FindingRules    []string `json:"finding_rules,omitempty"`
 	Findings        int      `json:"findings"`
 	HighestSeverity string   `json:"highest_severity,omitempty"`
 }
@@ -278,29 +279,36 @@ func readRegularBounded(path string, maxBytes int64) ([]byte, error) {
 
 func buildControls(findings []model.Finding, catalog rules.Catalog) controlCoverage {
 	type state struct {
-		rules    map[string]struct{}
-		findings int
-		highest  model.Severity
+		assessedRules map[string]struct{}
+		findingRules  map[string]struct{}
+		findings      int
+		highest       model.Severity
 	}
 	states := make(map[string]*state)
 	for _, rule := range catalog.Rules {
 		for _, reference := range rule.ControlRefs {
 			current := states[reference]
 			if current == nil {
-				current = &state{rules: make(map[string]struct{})}
+				current = &state{
+					assessedRules: make(map[string]struct{}),
+					findingRules:  make(map[string]struct{}),
+				}
 				states[reference] = current
 			}
-			current.rules[rule.ID] = struct{}{}
+			current.assessedRules[rule.ID] = struct{}{}
 		}
 	}
 	for _, finding := range findings {
 		for _, reference := range finding.ControlRefs {
 			current := states[reference]
 			if current == nil {
-				current = &state{rules: make(map[string]struct{})}
+				current = &state{
+					assessedRules: make(map[string]struct{}),
+					findingRules:  make(map[string]struct{}),
+				}
 				states[reference] = current
 			}
-			current.rules[finding.ID] = struct{}{}
+			current.findingRules[finding.ID] = struct{}{}
 			current.findings++
 			if severityRank(finding.Severity) > severityRank(current.highest) {
 				current.highest = finding.Severity
@@ -316,11 +324,16 @@ func buildControls(findings []model.Finding, catalog rules.Catalog) controlCover
 	controls := make([]controlAssessment, 0, len(references))
 	for _, reference := range references {
 		current := states[reference]
-		assessedRules := make([]string, 0, len(current.rules))
-		for ruleID := range current.rules {
+		assessedRules := make([]string, 0, len(current.assessedRules))
+		for ruleID := range current.assessedRules {
 			assessedRules = append(assessedRules, ruleID)
 		}
 		sort.Strings(assessedRules)
+		findingRules := make([]string, 0, len(current.findingRules))
+		for ruleID := range current.findingRules {
+			findingRules = append(findingRules, ruleID)
+		}
+		sort.Strings(findingRules)
 		status := "no_findings_observed"
 		if current.findings > 0 {
 			status = "attention_required"
@@ -329,13 +342,14 @@ func buildControls(findings []model.Finding, catalog rules.Catalog) controlCover
 			Reference:       reference,
 			Status:          status,
 			AssessedRules:   assessedRules,
+			FindingRules:    findingRules,
 			Findings:        current.findings,
 			HighestSeverity: string(current.highest),
 		})
 	}
 	return controlCoverage{
 		SchemaVersion:   "2",
-		FrameworkNotice: "Partial technical readiness observations only; references do not reproduce licensed criteria or constitute an audit opinion.",
+		FrameworkNotice: "Partial technical readiness observations only; assessed_rules lists the native catalog while finding_rules may include external observations. References do not reproduce licensed criteria or constitute an audit opinion.",
 		Ruleset:         catalog.Reference(),
 		Controls:        controls,
 	}
