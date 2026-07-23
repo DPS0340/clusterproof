@@ -37,19 +37,19 @@
 
 ## Task 5: Public report formats
 
-- [ ] Render deterministic table and JSON.
-- [ ] Render valid SARIF 2.1.0 with rule metadata and locations.
-- [ ] Refuse accidental output overwrite.
-- [ ] Verify formats with focused tests.
+- [x] Render deterministic table and JSON.
+- [x] Render valid SARIF 2.1.0 with rule metadata and locations.
+- [x] Refuse accidental output overwrite.
+- [x] Verify formats with focused tests.
 - Dependencies: Tasks 1, 3, 4.
 - Files: `internal/report/*`.
 
 ## Task 6: Evidence bundle
 
-- [ ] Record scan metadata and hashed input inventory.
-- [ ] Generate high-level SOC 2 readiness coverage.
-- [ ] Hash bundle files and refuse an existing destination.
-- [ ] Verify bundle integrity in tests.
+- [x] Record scan metadata and hashed input inventory.
+- [x] Generate high-level SOC 2 readiness coverage.
+- [x] Hash bundle files and refuse an existing destination.
+- [x] Verify bundle integrity in tests.
 - Dependencies: Task 5.
 - Files: `internal/evidence/*`.
 
