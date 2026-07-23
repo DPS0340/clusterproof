@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"sort"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/DPS0340/clusterproof/internal/cluster"
@@ -55,11 +57,96 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "scan":
 		return runScan(args[1:], stdout, stderr)
+	case "evidence":
+		return runEvidence(args[1:], stdout, stderr)
+	case "ruleset":
+		return runRuleset(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
 		printUsage(stderr)
 		return 1
 	}
+}
+
+func runEvidence(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
+		printEvidenceUsage(stdout)
+		return 0
+	}
+	if len(args) != 2 || args[0] != "verify" {
+		fmt.Fprintln(stderr, "clusterproof: evidence requires: verify DIR")
+		printEvidenceUsage(stderr)
+		return 1
+	}
+	if err := evidence.VerifyBundle(args[1]); err != nil {
+		fmt.Fprintf(stderr, "clusterproof: verify evidence: %v\n", err)
+		return 1
+	}
+	fmt.Fprintln(stdout, "evidence bundle verified")
+	return 0
+}
+
+func runRuleset(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
+		printRulesetUsage(stdout)
+		return 0
+	}
+	if len(args) == 0 || args[0] != "show" {
+		fmt.Fprintln(stderr, "clusterproof: ruleset requires: show")
+		printRulesetUsage(stderr)
+		return 1
+	}
+	format := "table"
+	for index := 1; index < len(args); index++ {
+		current := args[index]
+		switch {
+		case current == "-h" || current == "--help":
+			printRulesetUsage(stdout)
+			return 0
+		case current == "--format":
+			if index+1 >= len(args) {
+				fmt.Fprintln(stderr, "clusterproof: --format requires a value")
+				return 1
+			}
+			format = args[index+1]
+			index++
+		case strings.HasPrefix(current, "--format="):
+			format = strings.TrimPrefix(current, "--format=")
+		default:
+			fmt.Fprintf(stderr, "clusterproof: unknown ruleset argument %q\n", current)
+			return 1
+		}
+	}
+
+	catalog := rules.DefaultCatalog()
+	switch format {
+	case "json":
+		encoder := json.NewEncoder(stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(catalog); err != nil {
+			fmt.Fprintf(stderr, "clusterproof: write ruleset JSON: %v\n", err)
+			return 1
+		}
+	case "table":
+		writer := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
+		fmt.Fprintf(writer, "RULESET\tVERSION\tRULES\n%s\t%s\t%d\n\n", catalog.ID, catalog.Version, len(catalog.Rules))
+		fmt.Fprintln(writer, "RULE\tCATEGORY\tSOURCE")
+		for _, rule := range catalog.Rules {
+			sources := make([]string, 0, len(rule.Sources))
+			for _, source := range rule.Sources {
+				sources = append(sources, source.Name+" "+source.Version)
+			}
+			fmt.Fprintf(writer, "%s\t%s\t%s\n", rule.ID, rule.Category, strings.Join(sources, ", "))
+		}
+		if err := writer.Flush(); err != nil {
+			fmt.Fprintf(stderr, "clusterproof: write ruleset table: %v\n", err)
+			return 1
+		}
+	default:
+		fmt.Fprintln(stderr, "clusterproof: ruleset format must be table or json")
+		return 1
+	}
+	return 0
 }
 
 func runScan(args []string, stdout, stderr io.Writer) int {
@@ -311,6 +398,8 @@ Usage:
   kubectl clusterproof scan [flags] --kubeconfig PATH
   clusterproof scan [flags] PATH
   clusterproof scan [flags] --kubeconfig PATH
+  clusterproof evidence verify DIR
+  clusterproof ruleset show [--format table|json]
   clusterproof version
 
 Run "clusterproof scan --help" for scan flags.`)
@@ -333,4 +422,18 @@ Flags:
   --context NAME             Kubeconfig context (default current context)
   --namespace NAME           Scan one namespace (default all namespaces)
   -h, --help                 Show help`)
+}
+
+func printEvidenceUsage(writer io.Writer) {
+	fmt.Fprintln(writer, `Usage:
+  clusterproof evidence verify DIR
+
+Verifies the exact file set, byte sizes, and SHA-256 hashes in an evidence bundle.`)
+}
+
+func printRulesetUsage(writer io.Writer) {
+	fmt.Fprintln(writer, `Usage:
+  clusterproof ruleset show [--format table|json]
+
+Shows the exact versioned native rule catalog and its official sources.`)
 }

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/DPS0340/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/rules"
 )
 
 func TestRunScanReturnsPolicyExitCode(t *testing.T) {
@@ -78,6 +79,23 @@ spec:
 	}
 	if _, err := os.Stat(filepath.Join(evidence, "bundle-manifest.json")); err != nil {
 		t.Fatalf("evidence bundle missing: %v", err)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"evidence", "verify", evidence}, &stdout, &stderr)
+	if code != 0 || !strings.Contains(stdout.String(), "verified") {
+		t.Fatalf("verify code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+
+	if err := os.WriteFile(filepath.Join(evidence, "scan.json"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatalf("tamper evidence: %v", err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"evidence", "verify", evidence}, &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("tampered verify code = %d, want 1", code)
 	}
 }
 
@@ -218,5 +236,20 @@ spec:
 	}
 	if strings.Contains(stdout.String(), "SENSITIVE_POLICY_MESSAGE") {
 		t.Fatalf("PolicyReport message leaked: %s", stdout.String())
+	}
+}
+
+func TestRunRulesetShowJSON(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"ruleset", "show", "--format", "json"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr=%s", code, stderr.String())
+	}
+	var catalog rules.Catalog
+	if err := json.Unmarshal(stdout.Bytes(), &catalog); err != nil {
+		t.Fatalf("invalid catalog JSON: %v\n%s", err, stdout.String())
+	}
+	if catalog.ID != "clusterproof-default" || catalog.Version == "" || len(catalog.Rules) == 0 {
+		t.Fatalf("unexpected catalog: %#v", catalog)
 	}
 }
