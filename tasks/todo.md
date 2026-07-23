@@ -83,3 +83,37 @@
 - [x] Run a real fixture scan and review the diff for secrets.
 - Dependencies: all tasks.
 - Files: existing project files.
+
+## Task 11: Kubernetes List normalization
+
+- [x] Parse one bounded in-memory YAML snapshot into the existing workload model.
+- [x] Expand Kubernetes `List.items` without weakening YAML limits.
+- [x] Hash snapshot metadata without persisting response content.
+- Dependencies: Task 2.
+- Files: `internal/manifest/*`.
+
+## Task 12: Read-only cluster collection
+
+- [x] Invoke `kubectl get` with a fixed workload resource allowlist and no shell.
+- [x] Require kubeconfig and support optional context/namespace selection.
+- [x] Enforce request, process, stderr, and stdout bounds.
+- [x] Verify command injection, timeout, and oversized output cases.
+- Dependencies: Task 11.
+- Files: `internal/cluster/*`.
+
+## Task 13: Cluster CLI integration
+
+- [x] Make repository path and kubeconfig mutually exclusive scan targets.
+- [x] Reuse reports, evidence, rules, and exit policy for live workloads.
+- [x] Reject repository-only Trivy execution during cluster scans.
+- [x] Verify end-to-end with a fake kubectl executable.
+- Dependencies: Task 12.
+- Files: `cmd/clusterproof/*`, `README.md`.
+
+## Task 14: v0.2.0 release
+
+- [x] Record the open-core boundary in an ADR.
+- [ ] Run tests, vet, build, abuse checks, and code review.
+- [ ] Publish signed-checksum archives and update the krew manifest.
+- Dependencies: Tasks 11-13.
+- Files: `docs/*`, `CHANGELOG.md`, `deploy/krew/*`.

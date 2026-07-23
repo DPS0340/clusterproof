@@ -3,7 +3,8 @@
 ## Objective
 
 Build a read-only Go CLI for platform and security teams that scans Kubernetes
-manifests, optionally enriches the result with Trivy output, and produces
+manifests or a live cluster selected by kubeconfig, optionally enriches repository
+results with Trivy output, and produces
 machine-readable findings plus a tamper-evident SOC 2 readiness evidence bundle.
 
 The first successful user flow is:
@@ -16,6 +17,15 @@ clusterproof scan ./deploy \
   --fail-on high
 ```
 
+The live-cluster flow is:
+
+```text
+clusterproof scan --kubeconfig ~/.kube/config \
+  --context production \
+  --namespace payments \
+  --fail-on high
+```
+
 The command must find high-signal workload risks, explain remediation, inventory
 container image references, preserve evidence about exactly what was scanned, and
 exit non-zero when the configured policy threshold is reached.
@@ -25,9 +35,10 @@ that an organization can map into its auditor-approved control framework.
 
 ## Assumptions
 
-1. MVP users scan checked-out Kubernetes YAML, Helm-rendered YAML, or Kustomize
-   output; direct cluster access comes after the local workflow is trusted.
-2. The CLI runs offline by default and performs no telemetry or network calls.
+1. Users scan checked-out Kubernetes YAML, Helm-rendered YAML, Kustomize output,
+   or one explicitly selected kubeconfig/context.
+2. Repository scans run offline. Cluster scans contact only the Kubernetes API
+   selected by the user's kubeconfig and perform no telemetry.
 3. Trivy is an optional executable integration selected explicitly by the user.
 4. SOC 2 output uses high-level control-family references such as `SOC2:CC6` and
    `SOC2:CC7`; it does not reproduce licensed Trust Services Criteria text.
@@ -41,6 +52,8 @@ that an organization can map into its auditor-approved control framework.
 ```text
 untrusted YAML ──> bounded loader ──> normalized workloads ──> rule engine
                                                               │
+read-only kubectl get ──> bounded snapshot ────────────────────┤
+                                                              │
 optional Trivy JSON ──> bounded decoder ──> normalized findings┤
                                                               ▼
                               table / JSON / SARIF / evidence bundle
@@ -49,8 +62,12 @@ optional Trivy JSON ──> bounded decoder ──> normalized findings┤
 ### Included
 
 - Recursive `.yaml` / `.yml` discovery without following symlinks.
-- Workload extraction from Pod, Deployment, StatefulSet, DaemonSet, Job, and
-  CronJob resources.
+- Read-only live workload collection through an explicit kubeconfig, with optional
+  context and namespace selection.
+- Workload extraction from Pod, Deployment, StatefulSet, DaemonSet, ReplicaSet,
+  Job, and CronJob resources.
+- Live-scan de-duplication of controller-owned Pods, Deployment-owned ReplicaSets,
+  and CronJob-owned Jobs.
 - Stable findings for privileged execution, host namespaces, hostPath mounts,
   privilege escalation, root execution, missing seccomp, dangerous capabilities,
   writable root filesystems, service-account token automount, mutable image tags,
@@ -66,6 +83,8 @@ optional Trivy JSON ──> bounded decoder ──> normalized findings┤
 ### Excluded
 
 - Mutating Kubernetes resources or producing an `apply` command.
+- Reading Secrets, ConfigMaps, logs, events, or Kubernetes object status.
+- Cluster-wide history, rollups, and continuous monitoring.
 - Reading live Secret values.
 - Uploading findings or telemetry.
 - Claiming SOC 2 conformity, audit completion, or certification.
@@ -84,6 +103,8 @@ optional Trivy JSON ──> bounded decoder ──> normalized findings┤
 | YAML files to parser | Availability, terminal output | Alias bombs, huge files, malformed data, secret disclosure | Size/count/document/depth limits, no secret values in output, no symlinks |
 | Trivy JSON to decoder | Memory, report integrity | Oversized or malformed output, forged severity | Output cap, strict normalization, source marked as external |
 | CLI to Trivy process | Host execution, availability | Argument injection, hanging process, unexpected network | No shell, fixed executable, explicit opt-in, timeout, bounded output |
+| CLI to kubectl process | Kubeconfig credentials, cluster availability, host execution | Argument injection, mutation, broad data collection, hanging API, kubeconfig exec plugin | No shell, fixed `get` verb/resource allowlist, explicit trusted kubeconfig, request/process timeout, bounded output, no Secret collection |
+| Kubernetes API output to parser | Memory, report integrity | Oversized or malformed response, terminal data leakage | Output cap, shared YAML limits, security-relevant workload fields only |
 | Report/evidence writes | Existing user files, evidence integrity | Path overwrite, partial bundle, tampering | Refuse overwrite by default, restrictive permissions, atomic writes, SHA-256 bundle manifest |
 
 ### Abuse cases
@@ -95,6 +116,13 @@ optional Trivy JSON ──> bounded decoder ──> normalized findings┤
 - A malicious path begins with `-`: pass it as a positional argument to a process
   only after `--`.
 - Trivy hangs or emits unbounded output: terminate on timeout or output cap.
+- A context or namespace begins with `-` or contains shell syntax: pass it as the
+  value of a separate fixed argument without invoking a shell.
+- A kubeconfig grants mutation or Secret access: ClusterProof still invokes only
+  `kubectl get` for its fixed workload resource allowlist.
+- An untrusted kubeconfig defines an executable credential plugin: this is outside
+  ClusterProof's isolation boundary, so users must select only trusted kubeconfigs.
+- The API returns an oversized snapshot: terminate collection and fail closed.
 - A report path already exists: refuse replacement unless a future explicit
   overwrite option is added.
 
@@ -102,8 +130,9 @@ optional Trivy JSON ──> bounded decoder ──> normalized findings┤
 
 - Go 1.26
 - `gopkg.in/yaml.v3`
-- Optional local executables: Trivy 0.59+; no hard runtime dependency for native
-  manifest checks
+- Optional local executable: Trivy 0.59+ for repository enrichment
+- Required for cluster scans: a compatible `kubectl` executable and an explicit
+  kubeconfig path
 
 ## Commands
 
@@ -112,6 +141,7 @@ optional Trivy JSON ──> bounded decoder ──> normalized findings┤
 - Format: `gofmt -w .`
 - Vet: `go vet ./...`
 - Local scan: `go run ./cmd/clusterproof scan ./testdata/insecure`
+- Cluster scan: `go run ./cmd/clusterproof scan --kubeconfig ~/.kube/config`
 
 ## Project Structure
 
@@ -119,6 +149,7 @@ optional Trivy JSON ──> bounded decoder ──> normalized findings┤
 cmd/clusterproof/       CLI parsing and exit policy
 internal/model/         Stable report and finding contracts
 internal/manifest/      Bounded discovery and Kubernetes object extraction
+internal/cluster/       Read-only, bounded kubectl workload collection
 internal/rules/         Native Kubernetes security checks
 internal/trivy/         Optional Trivy execution and JSON normalization
 internal/report/        Table, JSON, SARIF, and evidence writers
@@ -150,7 +181,8 @@ func Evaluate(workload model.Workload) []model.Finding {
 ## Testing Strategy
 
 - Unit tests: rule behavior, severity threshold, Trivy normalization, safe writes.
-- Integration tests: recursive YAML scan through rendered JSON/SARIF/evidence.
+- Integration tests: recursive YAML and fake-kubectl scans through rendered
+  JSON/SARIF/evidence.
 - Abuse tests: symlink skip, file/output limits, malformed YAML, existing output.
 - Golden tests only for stable public formats where focused assertions are weaker.
 - Every behavior test must fail before its implementation is added.
@@ -174,10 +206,13 @@ func Evaluate(workload model.Workload) []model.Finding {
 4. `--fail-on high` returns the documented policy exit code when a high or
    critical finding exists.
 5. Evidence bundle hashes verify and an existing destination is not overwritten.
-6. Default execution performs no network call and no cluster mutation.
+6. Repository execution performs no network call. Cluster execution uses only the
+   selected Kubernetes API and never requests a mutating verb.
 7. `go test ./...`, `go vet ./...`, and `go build ./...` pass.
 8. A local release archive installs through krew and runs as
    `kubectl clusterproof`.
+9. `--kubeconfig` cannot be combined with a repository path or Trivy execution,
+   and cluster snapshots are bounded in size and time.
 
 ## Sources and Legal Notes
 
@@ -187,6 +222,10 @@ func Evaluate(workload model.Workload) []model.Finding {
   https://kubernetes.io/docs/concepts/security/pod-security-standards/
 - Kubernetes RBAC good practices:
   https://kubernetes.io/docs/concepts/security/rbac-good-practices/
+- Kubectl get reference:
+  https://kubernetes.io/docs/reference/kubectl/generated/kubectl_get/
+- Kubernetes authorization and `kubectl auth can-i`:
+  https://kubernetes.io/docs/reference/access-authn-authz/authorization/
 - Trivy Kubernetes scanning:
   https://trivy.dev/docs/latest/guide/target/kubernetes/
 - Trivy SBOM support:

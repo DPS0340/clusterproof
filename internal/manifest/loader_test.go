@@ -131,3 +131,90 @@ func TestLoadRejectsSymlinkAsRoot(t *testing.T) {
 		t.Fatal("Load followed a root symlink")
 	}
 }
+
+func TestLoadBytesExpandsKubernetesList(t *testing.T) {
+	data := []byte(`
+apiVersion: v1
+kind: List
+items:
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: api
+      namespace: payments
+    spec:
+      hostPID: true
+      containers:
+        - name: api
+          image: example/api:latest
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: worker
+      namespace: jobs
+    spec:
+      template:
+        spec:
+          containers:
+            - name: worker
+              image: example/worker:v1
+`)
+
+	result, err := LoadBytes("cluster:production:all-namespaces", data, DefaultLimits())
+	if err != nil {
+		t.Fatalf("LoadBytes: %v", err)
+	}
+	if len(result.Workloads) != 2 {
+		t.Fatalf("got %d workloads, want 2", len(result.Workloads))
+	}
+	if result.Workloads[0].Target() != "payments/Pod/api" {
+		t.Fatalf("first target = %q", result.Workloads[0].Target())
+	}
+	if result.Workloads[1].Target() != "jobs/Deployment/worker" {
+		t.Fatalf("second target = %q", result.Workloads[1].Target())
+	}
+	if len(result.Inputs) != 1 {
+		t.Fatalf("got %d inputs, want 1", len(result.Inputs))
+	}
+	input := result.Inputs[0]
+	if input.Path != "cluster:production:all-namespaces" || input.SHA256 == "" || input.Bytes != int64(len(data)) {
+		t.Fatalf("unexpected input inventory: %#v", input)
+	}
+}
+
+func TestLoadBytesRejectsOversizedSnapshot(t *testing.T) {
+	limits := DefaultLimits()
+	limits.MaxFileBytes = 4
+
+	if _, err := LoadBytes("cluster:test", []byte("kind: Pod\n"), limits); err == nil {
+		t.Fatal("LoadBytes succeeded, want size-limit error")
+	}
+}
+
+func TestLoadBytesPreservesOwnerKinds(t *testing.T) {
+	data := []byte(`
+apiVersion: v1
+kind: Pod
+metadata:
+  name: owned
+  ownerReferences:
+    - apiVersion: apps/v1
+      kind: ReplicaSet
+      name: api-abc
+      controller: true
+spec:
+  containers:
+    - {name: api, image: example/api:v1}
+`)
+
+	result, err := LoadBytes("cluster:test", data, DefaultLimits())
+	if err != nil {
+		t.Fatalf("LoadBytes: %v", err)
+	}
+	if len(result.Workloads) != 1 {
+		t.Fatalf("got %d workloads, want 1", len(result.Workloads))
+	}
+	if len(result.Workloads[0].OwnerKinds) != 1 || result.Workloads[0].OwnerKinds[0] != "ReplicaSet" {
+		t.Fatalf("owner kinds = %#v", result.Workloads[0].OwnerKinds)
+	}
+}

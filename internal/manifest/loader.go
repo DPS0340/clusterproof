@@ -80,6 +80,36 @@ func Load(root string, limits Limits) (Result, error) {
 	return result, nil
 }
 
+// LoadBytes parses one bounded Kubernetes YAML snapshot without persisting it.
+func LoadBytes(source string, data []byte, limits Limits) (Result, error) {
+	if strings.TrimSpace(source) == "" {
+		return Result{}, errors.New("manifest source is required")
+	}
+	if err := validateLimits(limits); err != nil {
+		return Result{}, err
+	}
+	if int64(len(data)) > limits.MaxFileBytes {
+		return Result{}, fmt.Errorf("manifest %q exceeds file limit of %d bytes", source, limits.MaxFileBytes)
+	}
+	if int64(len(data)) > limits.MaxTotalBytes {
+		return Result{}, fmt.Errorf("manifest input exceeds total limit of %d bytes", limits.MaxTotalBytes)
+	}
+
+	sum := sha256.Sum256(data)
+	workloads, _, err := decodeFile(source, data, 0, limits)
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{
+		Inputs: []model.Input{{
+			Path:   source,
+			SHA256: hex.EncodeToString(sum[:]),
+			Bytes:  int64(len(data)),
+		}},
+		Workloads: workloads,
+	}, nil
+}
+
 func validateLimits(limits Limits) error {
 	if limits.MaxFiles <= 0 || limits.MaxFileBytes <= 0 || limits.MaxTotalBytes <= 0 ||
 		limits.MaxDocuments <= 0 || limits.MaxNodes <= 0 || limits.MaxDepth <= 0 {
@@ -184,25 +214,48 @@ func decodeFile(path string, data []byte, priorDocuments int, limits Limits) ([]
 		if err := document.Decode(&resource); err != nil {
 			return nil, documents, fmt.Errorf("normalize manifest %q document %d: %w", path, documents, err)
 		}
-		podSpec, ok := resource.podSpec()
-		if !ok {
-			continue
-		}
-		workloads = append(workloads, Workload{
-			APIVersion: resource.APIVersion,
-			Kind:       resource.Kind,
-			Namespace:  resource.Metadata.Namespace,
-			Name:       resource.Metadata.Name,
-			Location: model.Location{
-				Path:     path,
-				Document: documents,
-				Line:     document.Content[0].Line,
-				Resource: resource.Kind + "/" + resource.Metadata.Name,
-			},
-			PodSpec: podSpec,
-		})
+		workloads = append(workloads, normalizeResource(resource, path, documents, document.Content[0].Line)...)
 	}
 	return workloads, documents, nil
+}
+
+func normalizeResource(resource rawResource, path string, document, line int) []Workload {
+	if resource.Kind == "List" {
+		var workloads []Workload
+		for _, item := range resource.Items {
+			workloads = append(workloads, normalizeResource(item, path, document, line)...)
+		}
+		return workloads
+	}
+
+	podSpec, ok := resource.podSpec()
+	if !ok {
+		return nil
+	}
+	return []Workload{{
+		APIVersion: resource.APIVersion,
+		Kind:       resource.Kind,
+		Namespace:  resource.Metadata.Namespace,
+		Name:       resource.Metadata.Name,
+		OwnerKinds: ownerKinds(resource.Metadata.OwnerReferences),
+		Location: model.Location{
+			Path:     path,
+			Document: document,
+			Line:     line,
+			Resource: resource.Kind + "/" + resource.Metadata.Name,
+		},
+		PodSpec: podSpec,
+	}}
+}
+
+func ownerKinds(references []rawOwnerReference) []string {
+	kinds := make([]string, 0, len(references))
+	for _, reference := range references {
+		if reference.Kind != "" {
+			kinds = append(kinds, reference.Kind)
+		}
+	}
+	return kinds
 }
 
 func validateNode(root *yaml.Node, limits Limits) error {
@@ -234,13 +287,21 @@ func validateNode(root *yaml.Node, limits Limits) error {
 }
 
 type rawResource struct {
-	APIVersion string `yaml:"apiVersion"`
-	Kind       string `yaml:"kind"`
-	Metadata   struct {
-		Name      string `yaml:"name"`
-		Namespace string `yaml:"namespace"`
-	} `yaml:"metadata"`
-	Spec rawSpec `yaml:"spec"`
+	APIVersion string        `yaml:"apiVersion"`
+	Kind       string        `yaml:"kind"`
+	Metadata   rawMetadata   `yaml:"metadata"`
+	Spec       rawSpec       `yaml:"spec"`
+	Items      []rawResource `yaml:"items"`
+}
+
+type rawMetadata struct {
+	Name            string              `yaml:"name"`
+	Namespace       string              `yaml:"namespace"`
+	OwnerReferences []rawOwnerReference `yaml:"ownerReferences"`
+}
+
+type rawOwnerReference struct {
+	Kind string `yaml:"kind"`
 }
 
 type rawSpec struct {
