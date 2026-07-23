@@ -4,6 +4,8 @@ All notable changes to ClusterProof are documented here.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-23
+
 ### Added
 
 - Independently versioned native ruleset catalog with Kubernetes PSS v1.36
