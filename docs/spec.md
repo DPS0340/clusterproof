@@ -64,8 +64,10 @@ optional Trivy JSON ──> bounded decoder ──> normalized findings┤
 - Recursive `.yaml` / `.yml` discovery without following symlinks.
 - Read-only live workload collection through an explicit kubeconfig, with optional
   context and namespace selection.
-- Workload extraction from Pod, Deployment, StatefulSet, DaemonSet, Job, and
-  CronJob resources.
+- Workload extraction from Pod, Deployment, StatefulSet, DaemonSet, ReplicaSet,
+  Job, and CronJob resources.
+- Live-scan de-duplication of controller-owned Pods, Deployment-owned ReplicaSets,
+  and CronJob-owned Jobs.
 - Stable findings for privileged execution, host namespaces, hostPath mounts,
   privilege escalation, root execution, missing seccomp, dangerous capabilities,
   writable root filesystems, service-account token automount, mutable image tags,
@@ -218,6 +220,10 @@ func Evaluate(workload model.Workload) []model.Finding {
   https://kubernetes.io/docs/concepts/security/pod-security-standards/
 - Kubernetes RBAC good practices:
   https://kubernetes.io/docs/concepts/security/rbac-good-practices/
+- Kubectl get reference:
+  https://kubernetes.io/docs/reference/kubectl/generated/kubectl_get/
+- Kubernetes authorization and `kubectl auth can-i`:
+  https://kubernetes.io/docs/reference/access-authn-authz/authorization/
 - Trivy Kubernetes scanning:
   https://trivy.dev/docs/latest/guide/target/kubernetes/
 - Trivy SBOM support:

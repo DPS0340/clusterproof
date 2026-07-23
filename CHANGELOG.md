@@ -4,6 +4,14 @@ All notable changes to ClusterProof are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Read-only live workload scans through an explicit kubeconfig, with optional
+  context and namespace scoping.
+- Bounded Kubernetes `List` snapshot parsing shared with the manifest rule engine.
+- An ADR defining separate Community scanner and commercial control-plane
+  repositories.
+
 ## [0.1.0] - 2026-07-23
 
 ### Added
