@@ -14,3 +14,7 @@ only a fixed, read-only `kubectl get` workload request with bounded output and
 runtime. ClusterProof does not read Secrets or persist kubeconfig contents. It has
 no server, authentication flow, telemetry endpoint, or automatic Kubernetes
 mutation.
+
+Treat kubeconfig files as executable trust inputs: Kubernetes supports credential
+plugins that `kubectl` may execute during authentication. Do not point
+ClusterProof at an untrusted kubeconfig.

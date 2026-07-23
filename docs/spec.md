@@ -103,7 +103,7 @@ optional Trivy JSON ──> bounded decoder ──> normalized findings┤
 | YAML files to parser | Availability, terminal output | Alias bombs, huge files, malformed data, secret disclosure | Size/count/document/depth limits, no secret values in output, no symlinks |
 | Trivy JSON to decoder | Memory, report integrity | Oversized or malformed output, forged severity | Output cap, strict normalization, source marked as external |
 | CLI to Trivy process | Host execution, availability | Argument injection, hanging process, unexpected network | No shell, fixed executable, explicit opt-in, timeout, bounded output |
-| CLI to kubectl process | Kubeconfig credentials, cluster availability, host execution | Argument injection, mutation, broad data collection, hanging API | No shell, fixed `get` verb/resource allowlist, explicit kubeconfig, request/process timeout, bounded output, no Secret collection |
+| CLI to kubectl process | Kubeconfig credentials, cluster availability, host execution | Argument injection, mutation, broad data collection, hanging API, kubeconfig exec plugin | No shell, fixed `get` verb/resource allowlist, explicit trusted kubeconfig, request/process timeout, bounded output, no Secret collection |
 | Kubernetes API output to parser | Memory, report integrity | Oversized or malformed response, terminal data leakage | Output cap, shared YAML limits, security-relevant workload fields only |
 | Report/evidence writes | Existing user files, evidence integrity | Path overwrite, partial bundle, tampering | Refuse overwrite by default, restrictive permissions, atomic writes, SHA-256 bundle manifest |
 
@@ -120,6 +120,8 @@ optional Trivy JSON ──> bounded decoder ──> normalized findings┤
   value of a separate fixed argument without invoking a shell.
 - A kubeconfig grants mutation or Secret access: ClusterProof still invokes only
   `kubectl get` for its fixed workload resource allowlist.
+- An untrusted kubeconfig defines an executable credential plugin: this is outside
+  ClusterProof's isolation boundary, so users must select only trusted kubeconfigs.
 - The API returns an oversized snapshot: terminate collection and fail closed.
 - A report path already exists: refuse replacement unless a future explicit
   overwrite option is added.

@@ -49,6 +49,11 @@ Secrets, ConfigMaps, logs, events, or mutation. The caller needs `list` access t
 the selected workload resources; permissions can be checked with
 `kubectl auth can-i list RESOURCE` for each resource type and scope.
 
+Use only a kubeconfig you trust. Kubernetes kubeconfigs can define executable
+credential plugins, which `kubectl` may run while authenticating. ClusterProof
+does not parse or store kubeconfig credentials, but it cannot prevent behavior
+configured inside the selected kubeconfig.
+
 CI gate and SARIF:
 
 ```bash
