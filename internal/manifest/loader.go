@@ -237,6 +237,7 @@ func normalizeResource(resource rawResource, path string, document, line int) []
 		Kind:       resource.Kind,
 		Namespace:  resource.Metadata.Namespace,
 		Name:       resource.Metadata.Name,
+		OwnerKinds: ownerKinds(resource.Metadata.OwnerReferences),
 		Location: model.Location{
 			Path:     path,
 			Document: document,
@@ -245,6 +246,16 @@ func normalizeResource(resource rawResource, path string, document, line int) []
 		},
 		PodSpec: podSpec,
 	}}
+}
+
+func ownerKinds(references []rawOwnerReference) []string {
+	kinds := make([]string, 0, len(references))
+	for _, reference := range references {
+		if reference.Kind != "" {
+			kinds = append(kinds, reference.Kind)
+		}
+	}
+	return kinds
 }
 
 func validateNode(root *yaml.Node, limits Limits) error {
@@ -276,14 +287,21 @@ func validateNode(root *yaml.Node, limits Limits) error {
 }
 
 type rawResource struct {
-	APIVersion string `yaml:"apiVersion"`
-	Kind       string `yaml:"kind"`
-	Metadata   struct {
-		Name      string `yaml:"name"`
-		Namespace string `yaml:"namespace"`
-	} `yaml:"metadata"`
-	Spec  rawSpec       `yaml:"spec"`
-	Items []rawResource `yaml:"items"`
+	APIVersion string        `yaml:"apiVersion"`
+	Kind       string        `yaml:"kind"`
+	Metadata   rawMetadata   `yaml:"metadata"`
+	Spec       rawSpec       `yaml:"spec"`
+	Items      []rawResource `yaml:"items"`
+}
+
+type rawMetadata struct {
+	Name            string              `yaml:"name"`
+	Namespace       string              `yaml:"namespace"`
+	OwnerReferences []rawOwnerReference `yaml:"ownerReferences"`
+}
+
+type rawOwnerReference struct {
+	Kind string `yaml:"kind"`
 }
 
 type rawSpec struct {

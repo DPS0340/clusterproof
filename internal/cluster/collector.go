@@ -14,7 +14,7 @@ import (
 	"github.com/DPS0340/clusterproof/internal/manifest"
 )
 
-const workloadResources = "pods,deployments.apps,statefulsets.apps,daemonsets.apps,jobs.batch,cronjobs.batch"
+const workloadResources = "pods,deployments.apps,statefulsets.apps,daemonsets.apps,replicasets.apps,jobs.batch,cronjobs.batch"
 
 // Options defines the executable, scope, and resource bounds for a cluster scan.
 type Options struct {
@@ -101,10 +101,66 @@ func Collect(ctx context.Context, options Options) (manifest.Result, error) {
 		return manifest.Result{}, fmt.Errorf("kubectl error output exceeds limit of %d bytes", options.MaxErrorBytes)
 	}
 
+	result, err := manifest.LoadBytes(
+		snapshotSource(options),
+		stdout.Bytes(),
+		snapshotLimits(options.MaxOutputBytes),
+	)
+	if err != nil {
+		return manifest.Result{}, err
+	}
+	result.Workloads = topLevelWorkloads(result.Workloads)
+	return result, nil
+}
+
+func topLevelWorkloads(workloads []manifest.Workload) []manifest.Workload {
+	filtered := make([]manifest.Workload, 0, len(workloads))
+	for _, workload := range workloads {
+		switch workload.Kind {
+		case "Pod":
+			if hasOwnerKind(workload, "ReplicaSet", "StatefulSet", "DaemonSet", "Job") {
+				continue
+			}
+		case "ReplicaSet":
+			if hasOwnerKind(workload, "Deployment") {
+				continue
+			}
+		case "Job":
+			if hasOwnerKind(workload, "CronJob") {
+				continue
+			}
+		}
+		filtered = append(filtered, workload)
+	}
+	return filtered
+}
+
+func hasOwnerKind(workload manifest.Workload, kinds ...string) bool {
+	for _, owner := range workload.OwnerKinds {
+		for _, kind := range kinds {
+			if owner == kind {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func snapshotLimits(maxOutputBytes int64) manifest.Limits {
 	limits := manifest.DefaultLimits()
-	limits.MaxFileBytes = options.MaxOutputBytes
-	limits.MaxTotalBytes = options.MaxOutputBytes
-	return manifest.LoadBytes(snapshotSource(options), stdout.Bytes(), limits)
+	limits.MaxFileBytes = maxOutputBytes
+	limits.MaxTotalBytes = maxOutputBytes
+
+	// A kubectl multi-resource List has substantially more nodes than one
+	// repository document at the same byte size. Bytes remain the primary memory
+	// bound; this prevents the repository-tuned node count from rejecting a valid
+	// aggregate snapshot after it has already been decoded.
+	nodeBudget := maxOutputBytes / 8
+	maxInt := int64(^uint(0) >> 1)
+	if nodeBudget > int64(limits.MaxNodes) && nodeBudget <= maxInt {
+		limits.MaxNodes = int(nodeBudget)
+	}
+	return limits
 }
 
 func snapshotSource(options Options) string {

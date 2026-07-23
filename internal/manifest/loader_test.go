@@ -190,3 +190,31 @@ func TestLoadBytesRejectsOversizedSnapshot(t *testing.T) {
 		t.Fatal("LoadBytes succeeded, want size-limit error")
 	}
 }
+
+func TestLoadBytesPreservesOwnerKinds(t *testing.T) {
+	data := []byte(`
+apiVersion: v1
+kind: Pod
+metadata:
+  name: owned
+  ownerReferences:
+    - apiVersion: apps/v1
+      kind: ReplicaSet
+      name: api-abc
+      controller: true
+spec:
+  containers:
+    - {name: api, image: example/api:v1}
+`)
+
+	result, err := LoadBytes("cluster:test", data, DefaultLimits())
+	if err != nil {
+		t.Fatalf("LoadBytes: %v", err)
+	}
+	if len(result.Workloads) != 1 {
+		t.Fatalf("got %d workloads, want 1", len(result.Workloads))
+	}
+	if len(result.Workloads[0].OwnerKinds) != 1 || result.Workloads[0].OwnerKinds[0] != "ReplicaSet" {
+		t.Fatalf("owner kinds = %#v", result.Workloads[0].OwnerKinds)
+	}
+}

@@ -12,6 +12,7 @@ type Workload struct {
 	Kind       string
 	Namespace  string
 	Name       string
+	OwnerKinds []string
 	Location   model.Location
 	PodSpec    PodSpec
 }
