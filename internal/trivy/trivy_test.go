@@ -53,8 +53,8 @@ func TestParseNormalizesFindingsWithoutSecretValues(t *testing.T) {
 	          "Severity": "CRITICAL",
 	          "Title": "AWS access key",
 	          "StartLine": 12,
-	          "Match": "AKIAEXAMPLESECRET",
-	          "Code": {"Lines": [{"Number": 12, "Content": "token=AKIAEXAMPLESECRET"}]}
+	          "Match": "SENSITIVE_MATCH_MUST_NOT_LEAK",
+	          "Code": {"Lines": [{"Number": 12, "Content": "redacted=SENSITIVE_MATCH_MUST_NOT_LEAK"}]}
 	        }
 	      ]
 	    }
@@ -82,7 +82,7 @@ func TestParseNormalizesFindingsWithoutSecretValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal: %v", err)
 	}
-	if strings.Contains(string(encoded), "AKIAEXAMPLESECRET") {
+	if strings.Contains(string(encoded), "SENSITIVE_MATCH_MUST_NOT_LEAK") {
 		t.Fatalf("secret value leaked into findings: %s", encoded)
 	}
 }
