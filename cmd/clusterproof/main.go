@@ -125,11 +125,13 @@ func runScan(args []string, stdout, stderr io.Writer) int {
 	}
 	sortFindings(findings)
 
+	rulesetReference := rules.DefaultCatalog().Reference()
 	scan := model.Report{
 		SchemaVersion: "1",
 		GeneratedAt:   time.Now().UTC(),
 		Target:        scanTarget,
 		ToolVersion:   version,
+		Ruleset:       &rulesetReference,
 		Inputs:        loaded.Inputs,
 		Findings:      findings,
 		Summary:       model.Summarize(findings),

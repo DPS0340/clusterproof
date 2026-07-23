@@ -40,6 +40,10 @@ spec:
 	if scan.Summary.Critical == 0 || scan.Summary.High == 0 {
 		t.Fatalf("expected critical and high findings: %#v", scan.Summary)
 	}
+	if scan.Ruleset == nil || scan.Ruleset.ID != "clusterproof-default" ||
+		scan.Ruleset.Version == "" || scan.Ruleset.RulesEvaluated == 0 {
+		t.Fatalf("ruleset identity missing: %#v", scan.Ruleset)
+	}
 }
 
 func TestRunScanCreatesEvidenceBundle(t *testing.T) {

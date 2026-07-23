@@ -86,15 +86,23 @@ type Summary struct {
 	Info     int `json:"info"`
 }
 
+// RulesetReference identifies the exact native catalog evaluated by a scan.
+type RulesetReference struct {
+	ID             string `json:"id"`
+	Version        string `json:"version"`
+	RulesEvaluated int    `json:"rules_evaluated"`
+}
+
 // Report is the canonical output consumed by every reporter.
 type Report struct {
-	SchemaVersion string    `json:"schema_version"`
-	GeneratedAt   time.Time `json:"generated_at"`
-	Target        string    `json:"target"`
-	ToolVersion   string    `json:"tool_version"`
-	Inputs        []Input   `json:"inputs"`
-	Findings      []Finding `json:"findings"`
-	Summary       Summary   `json:"summary"`
+	SchemaVersion string            `json:"schema_version"`
+	GeneratedAt   time.Time         `json:"generated_at"`
+	Target        string            `json:"target"`
+	ToolVersion   string            `json:"tool_version"`
+	Ruleset       *RulesetReference `json:"ruleset,omitempty"`
+	Inputs        []Input           `json:"inputs"`
+	Findings      []Finding         `json:"findings"`
+	Summary       Summary           `json:"summary"`
 }
 
 // Summarize counts findings by severity.

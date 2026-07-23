@@ -1,5 +1,7 @@
 package rules
 
+import "github.com/DPS0340/clusterproof/internal/model"
+
 // Relationship describes how a ClusterProof rule relates to an external source.
 type Relationship string
 
@@ -141,4 +143,13 @@ func DefaultCatalog() Catalog {
 		result.Rules[index].Sources = append([]SourceReference(nil), rule.Sources...)
 	}
 	return result
+}
+
+// Reference returns the compact catalog identity recorded in scan reports.
+func (c Catalog) Reference() model.RulesetReference {
+	return model.RulesetReference{
+		ID:             c.ID,
+		Version:        c.Version,
+		RulesEvaluated: len(c.Rules),
+	}
 }

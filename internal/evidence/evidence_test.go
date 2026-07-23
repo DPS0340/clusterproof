@@ -4,11 +4,29 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/DPS0340/clusterproof/internal/model"
 )
+
+type decodedControl struct {
+	Reference     string   `json:"reference"`
+	Status        string   `json:"status"`
+	AssessedRules []string `json:"assessed_rules"`
+	Findings      int      `json:"findings"`
+	Highest       string   `json:"highest_severity"`
+}
+
+type decodedCoverage struct {
+	SchemaVersion string `json:"schema_version"`
+	Ruleset       struct {
+		ID      string `json:"id"`
+		Version string `json:"version"`
+	} `json:"ruleset"`
+	Controls []decodedControl `json:"controls"`
+}
 
 func TestWriteBundleCreatesHashedReadinessEvidence(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "evidence")
@@ -29,7 +47,7 @@ func TestWriteBundleCreatesHashedReadinessEvidence(t *testing.T) {
 	if err := WriteBundle(directory, scan); err != nil {
 		t.Fatalf("WriteBundle: %v", err)
 	}
-	for _, name := range []string{"scan.json", "controls.json", "metadata.json", "bundle-manifest.json"} {
+	for _, name := range []string{"scan.json", "ruleset.json", "controls.json", "metadata.json", "bundle-manifest.json"} {
 		if _, err := os.Stat(filepath.Join(directory, name)); err != nil {
 			t.Fatalf("%s missing: %v", name, err)
 		}
@@ -39,21 +57,53 @@ func TestWriteBundleCreatesHashedReadinessEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read controls: %v", err)
 	}
-	var controls struct {
-		Controls []struct {
-			Reference string `json:"reference"`
-			Findings  int    `json:"findings"`
-		} `json:"controls"`
-	}
+	var controls decodedCoverage
 	if err := json.Unmarshal(data, &controls); err != nil {
 		t.Fatalf("decode controls: %v", err)
 	}
-	if len(controls.Controls) != 2 || controls.Controls[1].Reference != "SOC2:CC6" {
+	if controls.SchemaVersion != "2" || controls.Ruleset.ID != "clusterproof-default" ||
+		controls.Ruleset.Version == "" {
+		t.Fatalf("unexpected coverage identity: %#v", controls)
+	}
+	soc2 := findControl(controls.Controls, "SOC2:CC6")
+	if soc2.Status != "attention_required" || soc2.Findings != 1 ||
+		soc2.Highest != "critical" || len(soc2.AssessedRules) == 0 {
 		t.Fatalf("unexpected control coverage: %#v", controls)
+	}
+	if containsComplianceClaim(string(data)) {
+		t.Fatalf("controls contain a compliance claim: %s", data)
 	}
 
 	if err := VerifyBundle(directory); err != nil {
 		t.Fatalf("VerifyBundle: %v", err)
+	}
+}
+
+func TestWriteBundleRecordsNoFindingsObservedForAssessedRules(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "evidence")
+	scan := model.Report{
+		SchemaVersion: "1",
+		GeneratedAt:   time.Date(2026, 7, 23, 1, 2, 3, 0, time.UTC),
+		ToolVersion:   "dev",
+	}
+
+	if err := WriteBundle(directory, scan); err != nil {
+		t.Fatalf("WriteBundle: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(directory, "controls.json"))
+	if err != nil {
+		t.Fatalf("read controls: %v", err)
+	}
+	var controls decodedCoverage
+	if err := json.Unmarshal(data, &controls); err != nil {
+		t.Fatalf("decode controls: %v", err)
+	}
+	soc2 := findControl(controls.Controls, "SOC2:CC6")
+	if soc2.Status != "no_findings_observed" {
+		t.Fatalf("SOC2:CC6 status = %q", soc2.Status)
+	}
+	if containsComplianceClaim(string(data)) {
+		t.Fatalf("controls contain a compliance claim: %s", data)
 	}
 }
 
@@ -62,4 +112,22 @@ func TestWriteBundleRefusesExistingDirectory(t *testing.T) {
 	if err := WriteBundle(directory, model.Report{}); err == nil {
 		t.Fatal("WriteBundle reused existing directory")
 	}
+}
+
+func findControl(controls []decodedControl, reference string) decodedControl {
+	for _, control := range controls {
+		if control.Reference == reference {
+			return control
+		}
+	}
+	return decodedControl{}
+}
+
+func containsComplianceClaim(value string) bool {
+	for _, forbidden := range []string{`"compliant"`, `"passed"`, `"certified"`} {
+		if strings.Contains(strings.ToLower(value), forbidden) {
+			return true
+		}
+	}
+	return false
 }

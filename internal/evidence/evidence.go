@@ -12,24 +12,32 @@ import (
 	"strings"
 
 	"github.com/DPS0340/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/rules"
 )
 
 type controlCoverage struct {
-	FrameworkNotice string         `json:"framework_notice"`
-	Controls        []controlCount `json:"controls"`
+	SchemaVersion   string                 `json:"schema_version"`
+	FrameworkNotice string                 `json:"framework_notice"`
+	Ruleset         model.RulesetReference `json:"ruleset"`
+	Controls        []controlAssessment    `json:"controls"`
 }
 
-type controlCount struct {
-	Reference string `json:"reference"`
-	Findings  int    `json:"findings"`
+type controlAssessment struct {
+	Reference       string   `json:"reference"`
+	Status          string   `json:"status"`
+	AssessedRules   []string `json:"assessed_rules"`
+	Findings        int      `json:"findings"`
+	HighestSeverity string   `json:"highest_severity,omitempty"`
 }
 
 type metadata struct {
-	SchemaVersion string        `json:"schema_version"`
-	GeneratedAt   string        `json:"generated_at"`
-	ToolVersion   string        `json:"tool_version"`
-	Inputs        []model.Input `json:"inputs"`
-	Notice        string        `json:"notice"`
+	SchemaVersion string                 `json:"schema_version"`
+	GeneratedAt   string                 `json:"generated_at"`
+	ToolVersion   string                 `json:"tool_version"`
+	Target        string                 `json:"target"`
+	Ruleset       model.RulesetReference `json:"ruleset"`
+	Inputs        []model.Input          `json:"inputs"`
+	Notice        string                 `json:"notice"`
 }
 
 type bundleManifest struct {
@@ -58,11 +66,22 @@ func WriteBundle(directory string, scan model.Report) (err error) {
 		}
 	}()
 
-	controls := buildControls(scan.Findings)
+	catalog := rules.DefaultCatalog()
+	rulesetReference := catalog.Reference()
+	if scan.Ruleset != nil && *scan.Ruleset != rulesetReference {
+		return fmt.Errorf(
+			"report ruleset %s@%s does not match evidence catalog %s@%s",
+			scan.Ruleset.ID, scan.Ruleset.Version, rulesetReference.ID, rulesetReference.Version,
+		)
+	}
+	scan.Ruleset = &rulesetReference
+	controls := buildControls(scan.Findings, catalog)
 	meta := metadata{
 		SchemaVersion: scan.SchemaVersion,
 		GeneratedAt:   scan.GeneratedAt.UTC().Format("2006-01-02T15:04:05Z"),
 		ToolVersion:   scan.ToolVersion,
+		Target:        scan.Target,
+		Ruleset:       rulesetReference,
 		Inputs:        scan.Inputs,
 		Notice:        "Technical readiness evidence only; not a SOC 2 audit opinion or certification.",
 	}
@@ -71,8 +90,9 @@ func WriteBundle(directory string, scan model.Report) (err error) {
 		"scan.json":     scan,
 		"controls.json": controls,
 		"metadata.json": meta,
+		"ruleset.json":  catalog,
 	}
-	names := []string{"controls.json", "metadata.json", "scan.json"}
+	names := []string{"controls.json", "metadata.json", "ruleset.json", "scan.json"}
 	manifest := bundleManifest{Algorithm: "SHA-256"}
 	for _, name := range names {
 		data, err := marshal(files[name])
@@ -130,26 +150,85 @@ func VerifyBundle(directory string) error {
 	return nil
 }
 
-func buildControls(findings []model.Finding) controlCoverage {
-	counts := make(map[string]int)
-	for _, finding := range findings {
-		for _, reference := range finding.ControlRefs {
-			counts[reference]++
+func buildControls(findings []model.Finding, catalog rules.Catalog) controlCoverage {
+	type state struct {
+		rules    map[string]struct{}
+		findings int
+		highest  model.Severity
+	}
+	states := make(map[string]*state)
+	for _, rule := range catalog.Rules {
+		for _, reference := range rule.ControlRefs {
+			current := states[reference]
+			if current == nil {
+				current = &state{rules: make(map[string]struct{})}
+				states[reference] = current
+			}
+			current.rules[rule.ID] = struct{}{}
 		}
 	}
-	references := make([]string, 0, len(counts))
-	for reference := range counts {
+	for _, finding := range findings {
+		for _, reference := range finding.ControlRefs {
+			current := states[reference]
+			if current == nil {
+				current = &state{rules: make(map[string]struct{})}
+				states[reference] = current
+			}
+			current.rules[finding.ID] = struct{}{}
+			current.findings++
+			if severityRank(finding.Severity) > severityRank(current.highest) {
+				current.highest = finding.Severity
+			}
+		}
+	}
+	references := make([]string, 0, len(states))
+	for reference := range states {
 		references = append(references, reference)
 	}
 	sort.Strings(references)
 
-	controls := make([]controlCount, 0, len(references))
+	controls := make([]controlAssessment, 0, len(references))
 	for _, reference := range references {
-		controls = append(controls, controlCount{Reference: reference, Findings: counts[reference]})
+		current := states[reference]
+		assessedRules := make([]string, 0, len(current.rules))
+		for ruleID := range current.rules {
+			assessedRules = append(assessedRules, ruleID)
+		}
+		sort.Strings(assessedRules)
+		status := "no_findings_observed"
+		if current.findings > 0 {
+			status = "attention_required"
+		}
+		controls = append(controls, controlAssessment{
+			Reference:       reference,
+			Status:          status,
+			AssessedRules:   assessedRules,
+			Findings:        current.findings,
+			HighestSeverity: string(current.highest),
+		})
 	}
 	return controlCoverage{
-		FrameworkNotice: "References are customer-reviewable readiness mappings and do not reproduce licensed control criteria.",
+		SchemaVersion:   "2",
+		FrameworkNotice: "Partial technical readiness observations only; references do not reproduce licensed criteria or constitute an audit opinion.",
+		Ruleset:         catalog.Reference(),
 		Controls:        controls,
+	}
+}
+
+func severityRank(severity model.Severity) int {
+	switch severity {
+	case model.SeverityCritical:
+		return 5
+	case model.SeverityHigh:
+		return 4
+	case model.SeverityMedium:
+		return 3
+	case model.SeverityLow:
+		return 2
+	case model.SeverityInfo:
+		return 1
+	default:
+		return 0
 	}
 }
 
