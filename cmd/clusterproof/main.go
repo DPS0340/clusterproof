@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DPS0340/clusterproof/internal/cluster"
 	"github.com/DPS0340/clusterproof/internal/evidence"
 	"github.com/DPS0340/clusterproof/internal/manifest"
 	"github.com/DPS0340/clusterproof/internal/model"
@@ -19,9 +20,13 @@ import (
 )
 
 var version = "dev"
+var kubectlExecutable = "kubectl"
 
 type scanOptions struct {
 	target      string
+	kubeconfig  string
+	context     string
+	namespace   string
 	format      string
 	output      string
 	evidenceDir string
@@ -66,10 +71,26 @@ func runScan(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 
-	loaded, err := manifest.Load(options.target, manifest.DefaultLimits())
-	if err != nil {
-		fmt.Fprintf(stderr, "clusterproof: load manifests: %v\n", err)
-		return 1
+	var loaded manifest.Result
+	scanTarget := options.target
+	if options.kubeconfig != "" {
+		clusterOptions := cluster.DefaultOptions()
+		clusterOptions.Executable = kubectlExecutable
+		clusterOptions.Kubeconfig = options.kubeconfig
+		clusterOptions.Context = options.context
+		clusterOptions.Namespace = options.namespace
+		loaded, err = cluster.Collect(context.Background(), clusterOptions)
+		if err != nil {
+			fmt.Fprintf(stderr, "clusterproof: collect cluster: %v\n", err)
+			return 1
+		}
+		scanTarget = loaded.Inputs[0].Path
+	} else {
+		loaded, err = manifest.Load(options.target, manifest.DefaultLimits())
+		if err != nil {
+			fmt.Fprintf(stderr, "clusterproof: load manifests: %v\n", err)
+			return 1
+		}
 	}
 	var findings []model.Finding
 	for _, workload := range loaded.Workloads {
@@ -107,7 +128,7 @@ func runScan(args []string, stdout, stderr io.Writer) int {
 	scan := model.Report{
 		SchemaVersion: "1",
 		GeneratedAt:   time.Now().UTC(),
-		Target:        options.target,
+		Target:        scanTarget,
 		ToolVersion:   version,
 		Inputs:        loaded.Inputs,
 		Findings:      findings,
@@ -168,6 +189,9 @@ func parseScanOptions(args []string) (scanOptions, bool, error) {
 		"--evidence-dir": &options.evidenceDir,
 		"--fail-on":      &options.failOn,
 		"--trivy-json":   &options.trivyJSON,
+		"--kubeconfig":   &options.kubeconfig,
+		"--context":      &options.context,
+		"--namespace":    &options.namespace,
 	}
 
 	for index := 0; index < len(args); index++ {
@@ -217,8 +241,17 @@ func parseScanOptions(args []string) (scanOptions, bool, error) {
 		options.target = current
 	}
 
-	if options.target == "" {
-		return options, false, fmt.Errorf("scan path is required")
+	if options.target == "" && options.kubeconfig == "" {
+		return options, false, fmt.Errorf("scan path or --kubeconfig is required")
+	}
+	if options.target != "" && options.kubeconfig != "" {
+		return options, false, fmt.Errorf("scan path and --kubeconfig cannot be combined")
+	}
+	if options.kubeconfig == "" && (options.context != "" || options.namespace != "") {
+		return options, false, fmt.Errorf("--context and --namespace require --kubeconfig")
+	}
+	if options.kubeconfig != "" && (options.withTrivy || options.trivyJSON != "") {
+		return options, false, fmt.Errorf("Trivy options are only supported for repository scans")
 	}
 	if options.trivyJSON != "" && options.withTrivy {
 		return options, false, fmt.Errorf("--trivy-json and --with-trivy cannot be combined")
@@ -260,7 +293,9 @@ func printUsage(writer io.Writer) {
 
 Usage:
   kubectl clusterproof scan [flags] PATH
+  kubectl clusterproof scan [flags] --kubeconfig PATH
   clusterproof scan [flags] PATH
+  clusterproof scan [flags] --kubeconfig PATH
   clusterproof version
 
 Run "clusterproof scan --help" for scan flags.`)
@@ -269,6 +304,7 @@ Run "clusterproof scan --help" for scan flags.`)
 func printScanUsage(writer io.Writer) {
 	fmt.Fprintln(writer, `Usage:
   kubectl clusterproof scan [flags] PATH
+  kubectl clusterproof scan [flags] --kubeconfig PATH
 
 Flags:
   --format table|json|sarif  Output format (default table)
@@ -277,5 +313,8 @@ Flags:
   --fail-on SEVERITY         Exit 2 for findings at or above severity
   --trivy-json PATH          Import existing Trivy JSON
   --with-trivy               Explicitly run local Trivy (may update its databases)
+  --kubeconfig PATH          Read workloads from the selected cluster
+  --context NAME             Kubeconfig context (default current context)
+  --namespace NAME           Scan one namespace (default all namespaces)
   -h, --help                 Show help`)
 }
