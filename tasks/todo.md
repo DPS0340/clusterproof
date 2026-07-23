@@ -19,10 +19,10 @@
 
 ## Task 3: Native security rules
 
-- [ ] Detect high-signal Pod Security Standards violations.
-- [ ] Detect mutable and digest-unpinned images.
-- [ ] Return stable IDs, remediation, evidence, and control references.
-- [ ] Verify every rule with table-driven tests.
+- [x] Detect high-signal Pod Security Standards violations.
+- [x] Detect mutable and digest-unpinned images.
+- [x] Return stable IDs, remediation, evidence, and control references.
+- [x] Verify every rule with table-driven tests.
 - Dependencies: Task 2.
 - Files: `internal/rules/*`.
 
