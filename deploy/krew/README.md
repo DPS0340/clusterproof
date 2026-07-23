@@ -1,13 +1,14 @@
 # Krew release
 
-GoReleaser generates the checksum-pinned `clusterproof.yaml` plugin manifest in
-`dist/` from `.goreleaser.yaml`.
+GoReleaser generates a checksum-pinned plugin manifest in `dist/`. The reviewed
+manifest for the current public release is committed as `clusterproof.yaml`.
 
 Before the first public release:
 
 1. Tag a semantic version such as `v0.1.0`.
 2. Confirm all four release archives and `checksums.txt` exist.
-3. Test the generated manifest and a local archive:
+3. Copy the generated version, URLs, and checksums into `clusterproof.yaml`.
+4. Test the manifest and a local archive:
 
    ```bash
    kubectl krew install \
@@ -17,7 +18,7 @@ Before the first public release:
    kubectl krew uninstall clusterproof
    ```
 
-4. Submit `clusterproof.yaml` to `plugins/` in
+5. Submit `clusterproof.yaml` to `plugins/` in
    `kubernetes-sigs/krew-index`.
 
 Krew requires public open-source code, an OSI license, a semantic version tag,

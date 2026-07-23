@@ -1,0 +1,43 @@
+apiVersion: krew.googlecontainertools.github.com/v1alpha2
+kind: Plugin
+metadata:
+  name: clusterproof
+spec:
+  version: v0.1.0
+  homepage: https://github.com/DPS0340/clusterproof
+  shortDescription: Scan Kubernetes security and evidence
+  description: |
+    Scans local Kubernetes manifests for workload posture, image supply-chain,
+    and vulnerability risks, then emits SARIF and readiness evidence.
+  caveats: |
+    Local manifest scanning is offline. The optional --with-trivy flag requires
+    Trivy and may allow Trivy to update its databases.
+  platforms:
+    - selector:
+        matchLabels:
+          os: darwin
+          arch: amd64
+      uri: https://github.com/DPS0340/clusterproof/releases/download/v0.1.0/clusterproof_0.1.0_darwin_amd64.tar.gz
+      sha256: b144a4ede4ce31beb1038f31dea70aa15a3ab5f2468d69069138b30aa79e408a
+      bin: kubectl-clusterproof
+    - selector:
+        matchLabels:
+          os: darwin
+          arch: arm64
+      uri: https://github.com/DPS0340/clusterproof/releases/download/v0.1.0/clusterproof_0.1.0_darwin_arm64.tar.gz
+      sha256: d6b9c921f626662ef8e4c0dde78869cedb7cce19dc9b4b0cafd23fb79ea7c2d1
+      bin: kubectl-clusterproof
+    - selector:
+        matchLabels:
+          os: linux
+          arch: amd64
+      uri: https://github.com/DPS0340/clusterproof/releases/download/v0.1.0/clusterproof_0.1.0_linux_amd64.tar.gz
+      sha256: 7acdcd1e5b2d5fda9638ce8a20543d9eb071e1f5f978e279aa942b7bebaa6724
+      bin: kubectl-clusterproof
+    - selector:
+        matchLabels:
+          os: linux
+          arch: arm64
+      uri: https://github.com/DPS0340/clusterproof/releases/download/v0.1.0/clusterproof_0.1.0_linux_arm64.tar.gz
+      sha256: 5952475e970f5b05d878bcb0480c22dca653ac4481f914e841c902971de153f6
+      bin: kubectl-clusterproof
