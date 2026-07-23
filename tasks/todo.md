@@ -10,10 +10,10 @@
 
 ## Task 2: Bounded manifest loading
 
-- [ ] Discover only regular YAML files without following symlinks.
-- [ ] Enforce file, document, and aggregate limits.
-- [ ] Normalize supported Kubernetes workloads and locations.
-- [ ] Verify safe and abuse fixtures.
+- [x] Discover only regular YAML files without following symlinks.
+- [x] Enforce file, document, and aggregate limits.
+- [x] Normalize supported Kubernetes workloads and locations.
+- [x] Verify safe and abuse fixtures.
 - Dependencies: Task 1.
 - Files: `internal/manifest/*`, `testdata/*`.
 
