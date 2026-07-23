@@ -2,10 +2,12 @@
 package evidence
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -49,6 +51,22 @@ type bundleFile struct {
 	Path   string `json:"path"`
 	SHA256 string `json:"sha256"`
 	Bytes  int64  `json:"bytes"`
+}
+
+type verifyLimits struct {
+	MaxManifestBytes int64
+	MaxFiles         int
+	MaxFileBytes     int64
+	MaxTotalBytes    int64
+}
+
+func defaultVerifyLimits() verifyLimits {
+	return verifyLimits{
+		MaxManifestBytes: 1 << 20,
+		MaxFiles:         32,
+		MaxFileBytes:     200 << 20,
+		MaxTotalBytes:    500 << 20,
+	}
 }
 
 // WriteBundle creates a new evidence directory and never reuses an existing one.
@@ -123,31 +141,139 @@ func WriteBundle(directory string, scan model.Report) (err error) {
 
 // VerifyBundle confirms the size and SHA-256 of every recorded bundle file.
 func VerifyBundle(directory string) error {
-	data, err := os.ReadFile(filepath.Join(directory, "bundle-manifest.json"))
+	return verifyBundle(directory, defaultVerifyLimits())
+}
+
+func verifyBundle(directory string, limits verifyLimits) error {
+	if limits.MaxManifestBytes <= 0 || limits.MaxFiles <= 0 ||
+		limits.MaxFileBytes <= 0 || limits.MaxTotalBytes <= 0 {
+		return fmt.Errorf("all evidence verification limits must be positive")
+	}
+	info, err := os.Lstat(directory)
+	if err != nil {
+		return fmt.Errorf("inspect evidence directory: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return fmt.Errorf("evidence path is not a regular directory")
+	}
+
+	manifestPath := filepath.Join(directory, "bundle-manifest.json")
+	data, err := readRegularBounded(manifestPath, limits.MaxManifestBytes)
 	if err != nil {
 		return fmt.Errorf("read bundle manifest: %w", err)
 	}
 	var manifest bundleManifest
-	if err := json.Unmarshal(data, &manifest); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&manifest); err != nil {
 		return fmt.Errorf("decode bundle manifest: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return fmt.Errorf("decode bundle manifest: trailing JSON content")
 	}
 	if manifest.Algorithm != "SHA-256" {
 		return fmt.Errorf("unsupported bundle hash algorithm %q", manifest.Algorithm)
 	}
+	if len(manifest.Files) == 0 || len(manifest.Files) > limits.MaxFiles {
+		return fmt.Errorf("bundle file count must be between 1 and %d", limits.MaxFiles)
+	}
+
+	expected := make(map[string]bundleFile, len(manifest.Files))
+	var totalBytes int64
 	for _, file := range manifest.Files {
-		if filepath.Base(file.Path) != file.Path || file.Path == "." {
+		if filepath.Base(file.Path) != file.Path || file.Path == "." || file.Path == "" ||
+			file.Path == "bundle-manifest.json" {
 			return fmt.Errorf("unsafe bundle path %q", file.Path)
 		}
-		content, err := os.ReadFile(filepath.Join(directory, file.Path))
-		if err != nil {
-			return fmt.Errorf("read bundle file %q: %w", file.Path, err)
+		if _, exists := expected[file.Path]; exists {
+			return fmt.Errorf("duplicate bundle path %q", file.Path)
 		}
-		sum := sha256.Sum256(content)
-		if int64(len(content)) != file.Bytes || hex.EncodeToString(sum[:]) != file.SHA256 {
+		hash, err := hex.DecodeString(file.SHA256)
+		if err != nil || len(hash) != sha256.Size || strings.ToLower(file.SHA256) != file.SHA256 {
+			return fmt.Errorf("invalid SHA-256 for bundle file %q", file.Path)
+		}
+		if file.Bytes < 0 || file.Bytes > limits.MaxFileBytes {
+			return fmt.Errorf("bundle file %q has invalid size %d", file.Path, file.Bytes)
+		}
+		if totalBytes > limits.MaxTotalBytes-file.Bytes {
+			return fmt.Errorf("bundle exceeds total size limit of %d bytes", limits.MaxTotalBytes)
+		}
+		totalBytes += file.Bytes
+		expected[file.Path] = file
+	}
+
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return fmt.Errorf("read evidence directory: %w", err)
+	}
+	if len(entries) != len(expected)+1 {
+		return fmt.Errorf("evidence directory contains an unexpected number of files")
+	}
+	for _, entry := range entries {
+		if entry.Name() == "bundle-manifest.json" {
+			continue
+		}
+		if _, exists := expected[entry.Name()]; !exists {
+			return fmt.Errorf("untracked evidence file %q", entry.Name())
+		}
+		if entry.Type()&os.ModeSymlink != 0 || !entry.Type().IsRegular() {
+			return fmt.Errorf("evidence file %q is not regular", entry.Name())
+		}
+	}
+
+	for _, file := range manifest.Files {
+		path := filepath.Join(directory, file.Path)
+		info, err := os.Lstat(path)
+		if err != nil {
+			return fmt.Errorf("inspect bundle file %q: %w", file.Path, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return fmt.Errorf("bundle file %q is not regular", file.Path)
+		}
+		if info.Size() != file.Bytes {
+			return fmt.Errorf("bundle file %q failed integrity verification", file.Path)
+		}
+		input, err := os.Open(path)
+		if err != nil {
+			return fmt.Errorf("open bundle file %q: %w", file.Path, err)
+		}
+		hasher := sha256.New()
+		written, copyErr := io.Copy(hasher, input)
+		closeErr := input.Close()
+		if copyErr != nil {
+			return fmt.Errorf("hash bundle file %q: %w", file.Path, copyErr)
+		}
+		if closeErr != nil {
+			return fmt.Errorf("close bundle file %q: %w", file.Path, closeErr)
+		}
+		if written != file.Bytes || hex.EncodeToString(hasher.Sum(nil)) != file.SHA256 {
 			return fmt.Errorf("bundle file %q failed integrity verification", file.Path)
 		}
 	}
 	return nil
+}
+
+func readRegularBounded(path string, maxBytes int64) ([]byte, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%q is not a regular file", path)
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxBytes {
+		return nil, fmt.Errorf("%q exceeds limit of %d bytes", path, maxBytes)
+	}
+	return data, nil
 }
 
 func buildControls(findings []model.Finding, catalog rules.Catalog) controlCoverage {

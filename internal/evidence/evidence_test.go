@@ -114,6 +114,115 @@ func TestWriteBundleRefusesExistingDirectory(t *testing.T) {
 	}
 }
 
+func TestVerifyBundleRejectsExtraFile(t *testing.T) {
+	directory := writeTestBundle(t)
+	if err := os.WriteFile(filepath.Join(directory, "untracked.txt"), []byte("extra"), 0o600); err != nil {
+		t.Fatalf("write extra file: %v", err)
+	}
+	if err := VerifyBundle(directory); err == nil {
+		t.Fatal("VerifyBundle accepted an untracked file")
+	}
+}
+
+func TestVerifyBundleRejectsModifiedFile(t *testing.T) {
+	directory := writeTestBundle(t)
+	if err := os.WriteFile(filepath.Join(directory, "scan.json"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatalf("modify scan: %v", err)
+	}
+	if err := VerifyBundle(directory); err == nil {
+		t.Fatal("VerifyBundle accepted modified evidence")
+	}
+}
+
+func TestVerifyBundleRejectsSymlinkedFile(t *testing.T) {
+	directory := writeTestBundle(t)
+	path := filepath.Join(directory, "controls.json")
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("remove controls: %v", err)
+	}
+	if err := os.Symlink(filepath.Join(directory, "scan.json"), path); err != nil {
+		t.Fatalf("create symlink: %v", err)
+	}
+	if err := VerifyBundle(directory); err == nil {
+		t.Fatal("VerifyBundle followed a symlink")
+	}
+}
+
+func TestVerifyBundleRejectsDuplicateManifestEntry(t *testing.T) {
+	directory := writeTestBundle(t)
+	path := filepath.Join(directory, "bundle-manifest.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	var manifest bundleManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatalf("decode manifest: %v", err)
+	}
+	manifest.Files = append(manifest.Files, manifest.Files[0])
+	data, err = marshal(manifest)
+	if err != nil {
+		t.Fatalf("encode manifest: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("replace manifest: %v", err)
+	}
+	if err := VerifyBundle(directory); err == nil {
+		t.Fatal("VerifyBundle accepted a duplicate manifest entry")
+	}
+}
+
+func TestVerifyBundleEnforcesManifestLimit(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "bundle-manifest.json")
+	if err := os.WriteFile(path, []byte(strings.Repeat("x", 128)), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	limits := defaultVerifyLimits()
+	limits.MaxManifestBytes = 16
+	if err := verifyBundle(directory, limits); err == nil {
+		t.Fatal("verifyBundle accepted an oversized manifest")
+	}
+}
+
+func TestVerifyBundleRejectsMalformedHash(t *testing.T) {
+	directory := writeTestBundle(t)
+	path := filepath.Join(directory, "bundle-manifest.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	var manifest bundleManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatalf("decode manifest: %v", err)
+	}
+	manifest.Files[0].SHA256 = "not-a-sha256"
+	data, err = marshal(manifest)
+	if err != nil {
+		t.Fatalf("encode manifest: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("replace manifest: %v", err)
+	}
+	if err := VerifyBundle(directory); err == nil {
+		t.Fatal("VerifyBundle accepted a malformed hash")
+	}
+}
+
+func writeTestBundle(t *testing.T) string {
+	t.Helper()
+	directory := filepath.Join(t.TempDir(), "evidence")
+	scan := model.Report{
+		SchemaVersion: "1",
+		GeneratedAt:   time.Date(2026, 7, 23, 1, 2, 3, 0, time.UTC),
+		ToolVersion:   "dev",
+	}
+	if err := WriteBundle(directory, scan); err != nil {
+		t.Fatalf("WriteBundle: %v", err)
+	}
+	return directory
+}
+
 func findControl(controls []decodedControl, reference string) decodedControl {
 	for _, control := range controls {
 		if control.Reference == reference {
