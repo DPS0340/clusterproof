@@ -33,6 +33,8 @@ that an organization can map into its auditor-approved control framework.
    `SOC2:CC7`; it does not reproduce licensed Trust Services Criteria text.
 5. Automatic fixes, admission control, dashboards, multi-tenancy, and credential
    storage are out of scope.
+6. The community core is Apache-2.0 and the release binary is installable as
+   `kubectl clusterproof` through krew.
 
 ## Product Boundaries
 
@@ -58,6 +60,8 @@ optional Trivy JSON ──> bounded decoder ──> normalized findings┤
 - Evidence directory containing report JSON, input inventory with SHA-256 hashes,
   control-family coverage, tool metadata, and a SHA-256 manifest of bundle files.
 - Severity threshold exit codes suitable for CI.
+- Cross-platform release archives and a krew manifest for `darwin` and `linux`
+  on `amd64` and `arm64`.
 
 ### Excluded
 
@@ -68,6 +72,8 @@ optional Trivy JSON ──> bounded decoder ──> normalized findings┤
 - Reproducing AICPA Trust Services Criteria descriptions.
 - Verifying image signatures online in MVP; image digest policy is checked locally.
 - CVE database maintenance; vulnerability intelligence remains Trivy's job.
+- Paid collaboration services in the community binary; the commercial boundary is
+  specified separately in `docs/open-core.md`.
 
 ## Threat Model
 
@@ -119,6 +125,9 @@ internal/report/        Table, JSON, SARIF, and evidence writers
 testdata/               Benign and intentionally insecure fixtures
 docs/                   Product spec and source notes
 tasks/                  Implementation plan and tracked tasks
+deploy/krew/            Krew manifest template
+.github/workflows/      Pull-request quality gate and tagged release
+.goreleaser.yaml        Reproducible cross-platform release archives
 ```
 
 ## Code Style
@@ -167,6 +176,8 @@ func Evaluate(workload model.Workload) []model.Finding {
 5. Evidence bundle hashes verify and an existing destination is not overwritten.
 6. Default execution performs no network call and no cluster mutation.
 7. `go test ./...`, `go vet ./...`, and `go build ./...` pass.
+8. A local release archive installs through krew and runs as
+   `kubectl clusterproof`.
 
 ## Sources and Legal Notes
 
@@ -184,6 +195,10 @@ func Evaluate(workload model.Workload) []model.Finding {
   https://docs.sigstore.dev/policy-controller/overview/
 - AICPA licensing notice for Trust Services Criteria and SOC marks:
   https://www.aicpa-cima.com/resources/landing/licensing-for-teams
+- Krew plugin manifest:
+  https://krew.sigs.k8s.io/docs/developer-guide/plugin-manifest/
+- Krew release checklist:
+  https://krew.sigs.k8s.io/docs/developer-guide/release/new-plugin/
 
 ClusterProof's mappings are implementation-oriented readiness references, not
 licensed criteria text and not an auditor opinion.

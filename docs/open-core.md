@@ -1,0 +1,96 @@
+# ClusterProof Open-Core Model
+
+## Product Thesis
+
+The free product must be good enough that an engineer finds a real risk, fixes it,
+and recommends ClusterProof internally. Revenue starts when a team needs repeatable
+governance, collaboration, history, and auditor-ready operations.
+
+Do not paywall new vulnerability detections, security fixes, JSON/SARIF output, or
+the ability to enforce a severity threshold in CI. Weakening the scanner weakens
+the acquisition channel.
+
+## Edition Boundary
+
+| Capability | Community (Apache-2.0) | Team | Enterprise |
+| --- | --- | --- | --- |
+| Offline manifest and PSS-oriented checks | Included | Included | Included |
+| Trivy enrichment and image integrity checks | Included | Included | Included |
+| JSON, SARIF, one-run evidence bundle | Included | Included | Included |
+| CI severity threshold | Included | Included | Included |
+| Organization policy packs | — | Included | Included |
+| Baselines and finding diff across releases | — | Included | Included |
+| Time-bound waiver workflow with owner/reason | — | Included | Included |
+| Evidence history and multi-cluster rollup | — | Included | Included |
+| Auditor export templates and custom control map | — | Included | Included |
+| SSO/RBAC/immutable audit log | — | — | Included |
+| Air-gapped license and private policy distribution | — | — | Included |
+| Support SLA and custom rules | Community | Business hours | Contracted |
+
+The Team and Enterprise capabilities should live in separate private modules or a
+private control-plane repository. The public engine exposes stable interfaces but
+contains no dormant proprietary implementation.
+
+## Initial Pricing
+
+Pricing is annual to match security and compliance budgets:
+
+- **Community:** free.
+- **Team:** USD 2,400/year, up to 10 clusters and 25 repositories.
+- **Scale:** USD 9,600/year, up to 50 clusters and 200 repositories.
+- **Enterprise:** starts at USD 25,000/year for air-gapped use, SSO/RBAC, support,
+  and contract-specific control mappings.
+
+Avoid per-seat pricing at first. Cluster/repository limits align price with the
+surface being protected and do not discourage security participation.
+
+## Service-Led Revenue
+
+The fastest path to revenue is a fixed-scope engagement powered by the community
+scanner:
+
+1. **Kubernetes Security Baseline — USD 5,000**
+   - One production cluster or one deployment repository.
+   - Findings triage, 90-minute review, prioritized remediation plan.
+   - Target delivery: 2–3 engineering days.
+2. **Supply-Chain Readiness Sprint — USD 8,000**
+   - SBOM, digest pinning, Trivy policy, CI/SARIF, and signature-readiness review.
+   - Target delivery: 4–5 engineering days.
+3. **SOC 2 Technical Evidence Sprint — USD 12,000**
+   - Up to five clusters/repositories, evidence workflow, ownership and waiver
+     design, auditor handoff pack.
+   - Target delivery: 6–8 engineering days.
+
+Credit 50% of the engagement fee toward the first annual Team or Scale license.
+This converts consulting into product revenue without discounting the expertise.
+
+## Conversion Loop
+
+```text
+krew install
+  -> first local finding
+  -> CI adoption
+  -> repeated baseline/waiver pain
+  -> paid readiness sprint
+  -> Team license
+  -> multi-cluster Enterprise expansion
+```
+
+Measure:
+
+- Install-to-first-scan completion.
+- Repositories running ClusterProof in CI after 14 days.
+- Teams creating manual baselines or spreadsheets for waivers.
+- Evidence bundle generation frequency.
+- Service engagement to annual-license conversion.
+
+## Licensing and Trust
+
+- Community core: Apache License 2.0.
+- Commercial modules: proprietary license, offline signed entitlement supported.
+- No telemetry by default. Optional anonymous metrics require explicit opt-in and
+  a published event schema.
+- No compliance guarantee. Reports are technical evidence and require customer and
+  auditor review.
+- AICPA Trust Services Criteria text and SOC marks require appropriate licensing;
+  do not bundle their descriptions in the community or paid product without it.

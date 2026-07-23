@@ -52,7 +52,8 @@ model contract
 ### Phase 3: Ship Readiness
 
 - [ ] Task 8: Add README, examples, security notes, and source attribution.
-- [ ] Task 9: Run tests, vet, build, runtime smoke test, and secret review.
+- [ ] Task 9: Add krew packaging, CI, and tagged release automation.
+- [ ] Task 10: Run tests, vet, build, runtime smoke test, and secret review.
 
 ## Risks and Mitigations
 
@@ -63,6 +64,7 @@ model contract
 | Trivy schema drift | Medium | Narrow adapter with fixture tests |
 | Rule false positives | Medium | Evidence paths, clear remediation, documented scope |
 | Scanner subprocess hangs | Medium | Context timeout and output cap |
+| Krew release metadata drift | Medium | Generate archives and checksums from one tag |
 
 ## Open Questions Deferred Beyond MVP
 
