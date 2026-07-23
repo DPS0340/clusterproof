@@ -156,4 +156,6 @@ go build ./...
 ```
 
 The product spec and threat model are in [docs/spec.md](docs/spec.md).
+Product direction and implementation milestones are in
+[docs/roadmap.md](docs/roadmap.md).
 Release gates and rollback are in [docs/release.md](docs/release.md).
