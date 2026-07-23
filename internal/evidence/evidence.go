@@ -1,4 +1,4 @@
-// Package evidence writes immutable, hashed technical readiness bundles.
+// Package evidence writes and verifies hashed technical readiness bundles.
 package evidence
 
 import (

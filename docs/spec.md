@@ -55,6 +55,8 @@ untrusted YAML ──> bounded loader ──> normalized workloads ──> rule 
 read-only kubectl get ──> bounded snapshot ────────────────────┤
                                                               │
 optional Trivy JSON ──> bounded decoder ──> normalized findings┤
+                                                              │
+PolicyReport JSON ──> bounded result-only adapter ─────────────┤
                                                               ▼
                               table / JSON / SARIF / evidence bundle
 ```
@@ -73,9 +75,15 @@ optional Trivy JSON ──> bounded decoder ──> normalized findings┤
   writable root filesystems, service-account token automount, mutable image tags,
   and unpinned images.
 - Optional import of Trivy JSON and optional bounded Trivy subprocess execution.
+- Bounded import of `wgpolicyk8s.io/v1alpha2` PolicyReport results without
+  downloading or executing policy code.
+- An independently versioned native catalog with explicit PSS-aligned or
+  supplemental source relationships.
 - Table, JSON, and SARIF 2.1.0 reports.
 - Evidence directory containing report JSON, input inventory with SHA-256 hashes,
   control-family coverage, tool metadata, and a SHA-256 manifest of bundle files.
+- Offline evidence verification that rejects missing, modified, extra,
+  symlinked, or oversized files.
 - Severity threshold exit codes suitable for CI.
 - Cross-platform release archives and a krew manifest for `darwin` and `linux`
   on `amd64` and `arm64`.
@@ -102,10 +110,11 @@ optional Trivy JSON ──> bounded decoder ──> normalized findings┤
 | --- | --- | --- | --- |
 | YAML files to parser | Availability, terminal output | Alias bombs, huge files, malformed data, secret disclosure | Size/count/document/depth limits, no secret values in output, no symlinks |
 | Trivy JSON to decoder | Memory, report integrity | Oversized or malformed output, forged severity | Output cap, strict normalization, source marked as external |
+| PolicyReport JSON to decoder | Memory, confidentiality, report integrity | Oversized result sets, forged severity, terminal or secret disclosure | Input/report/result caps, schema allowlist, text normalization, source messages omitted, no policy execution |
 | CLI to Trivy process | Host execution, availability | Argument injection, hanging process, unexpected network | No shell, fixed executable, explicit opt-in, timeout, bounded output |
 | CLI to kubectl process | Kubeconfig credentials, cluster availability, host execution | Argument injection, mutation, broad data collection, hanging API, kubeconfig exec plugin | No shell, fixed `get` verb/resource allowlist, explicit trusted kubeconfig, request/process timeout, bounded output, no Secret collection |
 | Kubernetes API output to parser | Memory, report integrity | Oversized or malformed response, terminal data leakage | Output cap, shared YAML limits, security-relevant workload fields only |
-| Report/evidence writes | Existing user files, evidence integrity | Path overwrite, partial bundle, tampering | Refuse overwrite by default, restrictive permissions, atomic writes, SHA-256 bundle manifest |
+| Report/evidence writes and verification | Existing user files, evidence integrity | Path overwrite, partial bundle, tampering, manifest path confusion | Refuse overwrite by default, restrictive permissions, atomic writes, exact file set, safe relative paths, bounded SHA-256 verification |
 
 ### Abuse cases
 
@@ -123,6 +132,10 @@ optional Trivy JSON ──> bounded decoder ──> normalized findings┤
 - An untrusted kubeconfig defines an executable credential plugin: this is outside
   ClusterProof's isolation boundary, so users must select only trusted kubeconfigs.
 - The API returns an oversized snapshot: terminate collection and fail closed.
+- A PolicyReport includes hostile or sensitive result messages: normalize only
+  bounded identifiers and metadata; omit source messages.
+- An evidence directory contains an untracked file or symlink: reject the whole
+  bundle rather than partially verifying it.
 - A report path already exists: refuse replacement unless a future explicit
   overwrite option is added.
 
@@ -150,9 +163,11 @@ cmd/clusterproof/       CLI parsing and exit policy
 internal/model/         Stable report and finding contracts
 internal/manifest/      Bounded discovery and Kubernetes object extraction
 internal/cluster/       Read-only, bounded kubectl workload collection
-internal/rules/         Native Kubernetes security checks
+internal/rules/         Native Kubernetes security checks and ruleset catalog
 internal/trivy/         Optional Trivy execution and JSON normalization
+internal/policyreport/  Bounded external result-only normalization
 internal/report/        Table, JSON, SARIF, and evidence writers
+internal/evidence/      Readiness bundle writer and verifier
 testdata/               Benign and intentionally insecure fixtures
 docs/                   Product spec and source notes
 tasks/                  Implementation plan and tracked tasks
@@ -180,10 +195,12 @@ func Evaluate(workload model.Workload) []model.Finding {
 
 ## Testing Strategy
 
-- Unit tests: rule behavior, severity threshold, Trivy normalization, safe writes.
+- Unit tests: rule behavior/catalog, severity threshold, Trivy and PolicyReport
+  normalization, safe writes and evidence verification.
 - Integration tests: recursive YAML and fake-kubectl scans through rendered
   JSON/SARIF/evidence.
-- Abuse tests: symlink skip, file/output limits, malformed YAML, existing output.
+- Abuse tests: symlink skip, file/output limits, malformed YAML/JSON, hostile
+  PolicyReports, existing output, and evidence path confusion.
 - Golden tests only for stable public formats where focused assertions are weaker.
 - Every behavior test must fail before its implementation is added.
 
@@ -193,8 +210,9 @@ func Evaluate(workload model.Workload) []model.Finding {
   tests/vet/build, document public formats.
 - Ask first: new dependency, network-by-default behavior, live cluster access,
   persistence, authentication, mutation, CI publishing.
-- Never: commit secrets, follow symlinks, execute a shell, expose manifest secret
-  values, silently overwrite evidence, or claim audit certification.
+- Never: commit secrets, follow symlinks, execute a shell or imported policy,
+  expose manifest/policy-result secret values, silently overwrite evidence, or
+  claim audit certification.
 
 ## Success Criteria
 
@@ -213,6 +231,8 @@ func Evaluate(workload model.Workload) []model.Finding {
    `kubectl clusterproof`.
 9. `--kubeconfig` cannot be combined with a repository path or Trivy execution,
    and cluster snapshots are bounded in size and time.
+10. Every native rule is present in the versioned catalog, and imported external
+    policies are results only.
 
 ## Sources and Legal Notes
 
@@ -220,6 +240,8 @@ func Evaluate(workload model.Workload) []model.Finding {
   https://kubernetes.io/docs/concepts/security/security-checklist/
 - Kubernetes Pod Security Standards:
   https://kubernetes.io/docs/concepts/security/pod-security-standards/
+- Kubernetes Pod Security Admission version pinning:
+  https://kubernetes.io/docs/concepts/security/pod-security-admission/
 - Kubernetes RBAC good practices:
   https://kubernetes.io/docs/concepts/security/rbac-good-practices/
 - Kubectl get reference:
@@ -232,6 +254,12 @@ func Evaluate(workload model.Workload) []model.Finding {
   https://trivy.dev/docs/latest/guide/supply-chain/sbom/
 - Sigstore policy-controller:
   https://docs.sigstore.dev/policy-controller/overview/
+- Kyverno Policy Reports:
+  https://kyverno.io/docs/guides/reports/
+- OPA Gatekeeper Policy Library:
+  https://open-policy-agent.github.io/gatekeeper-library/website/
+- NIST OSCAL Assessment Results:
+  https://pages.nist.gov/OSCAL/learn/concepts/layer/assessment/assessment-results/
 - AICPA licensing notice for Trust Services Criteria and SOC marks:
   https://www.aicpa-cima.com/resources/landing/licensing-for-teams
 - Krew plugin manifest:

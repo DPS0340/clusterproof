@@ -413,7 +413,7 @@ func printScanUsage(writer io.Writer) {
 Flags:
   --format table|json|sarif  Output format (default table)
   --output PATH              Create report file; refuses overwrite
-  --evidence-dir PATH        Create immutable readiness evidence bundle
+  --evidence-dir PATH        Create integrity-checked readiness evidence
   --fail-on SEVERITY         Exit 2 for findings at or above severity
   --trivy-json PATH          Import existing Trivy JSON
   --policy-report-json PATH  Import wgpolicyk8s PolicyReport JSON results

@@ -15,6 +15,8 @@
 - Vet: `go vet ./...`
 - Run: `go run ./cmd/clusterproof scan ./testdata/insecure`
 - Live scan: `go run ./cmd/clusterproof scan --kubeconfig /path/to/config`
+- Show catalog: `go run ./cmd/clusterproof ruleset show`
+- Verify evidence: `go run ./cmd/clusterproof evidence verify /path/to/evidence`
 
 ## Conventions
 
@@ -38,9 +40,13 @@ func Scan(path string, limits Limits) (Report, error) {
 - Always treat manifests and scanner output as untrusted input.
 - Always bound file count, file size, YAML document count, subprocess runtime, and output size.
 - Always use `exec.CommandContext` with argument arrays; never invoke a shell.
+- External policies are result-only inputs. Never download or execute imported
+  Rego, Kyverno, Gatekeeper, or other policy code.
+- Evidence verification must require an exact, bounded set of regular files and
+  safe relative manifest paths.
 - Always keep the default scan read-only and local-only.
 - Live collection must use the fixed workload `kubectl get` allowlist in
   `internal/cluster`; never accept a verb or resource name from user input.
 - Ask before adding network services, authentication, a database, or cluster mutation.
 - Never transmit scan data, follow symlinks, execute manifest content, or print secret values.
-- Never claim that a report certifies SOC 2 compliance.
+- Never use `compliant`, `passed`, or `certified` for SOC 2 readiness output.

@@ -17,13 +17,14 @@ the acquisition channel.
 | Offline manifest and PSS-oriented checks | Included | Included | Included |
 | Read-only scan of one cluster/context per invocation | Included | Included | Included |
 | Trivy enrichment and image integrity checks | Included | Included | Included |
-| JSON, SARIF, one-run evidence bundle | Included | Included | Included |
+| Versioned native catalog and bounded PolicyReport import | Included | Included | Included |
+| JSON, SARIF, verifiable one-run evidence bundle | Included | Included | Included |
 | CI severity threshold | Included | Included | Included |
-| Organization policy packs | — | Included | Included |
+| Organization policy distribution and pinning | — | Included | Included |
 | Baselines and finding diff across releases | — | Included | Included |
 | Time-bound waiver workflow with owner/reason | — | Included | Included |
 | Evidence history and multi-cluster rollup | — | Included | Included |
-| Auditor export templates and custom control map | — | Included | Included |
+| Auditor export templates, OSCAL transform, and licensed/custom control map | — | Included | Included |
 | SSO/RBAC/immutable audit log | — | — | Included |
 | Air-gapped license and private policy distribution | — | — | Included |
 | Support SLA and custom rules | Community | Business hours | Contracted |
@@ -94,7 +95,8 @@ Measure:
 - Hosted entitlements are enforced server-side. Air-gapped entitlements are
   signed, expiring documents; no shared license secret is embedded in a client.
 - License gates apply to aggregation and workflow, never to detections, security
-  fixes, or single-target scan correctness.
+  fixes, PolicyReport import, evidence verification, or single-target scan
+  correctness.
 - No telemetry by default. Optional anonymous metrics require explicit opt-in and
   a published event schema.
 - No compliance guarantee. Reports are technical evidence and require customer and
