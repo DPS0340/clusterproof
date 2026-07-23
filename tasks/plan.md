@@ -82,3 +82,17 @@ model contract
 
 - Which auditor-approved control catalog should customers import?
 - Which signature identity policy should gate Sigstore verification?
+
+### Phase 5: SOC 2 Technical Readiness
+
+- [ ] Task 15: Add a versioned native ruleset catalog grounded in Kubernetes PSS.
+- [ ] Task 16: Replace finding-only control counts with assessed coverage states.
+- [ ] Task 17: Add bounded external PolicyReport JSON import.
+- [ ] Task 18: Harden bundle verification and expose it through the CLI.
+- [ ] Task 19: Document licensing boundaries and release v0.3.0.
+
+### Checkpoint: Audit-readiness evidence
+
+- [ ] No output claims compliance or reproduces licensed criteria text.
+- [ ] Every native rule is cataloged and every evidence file is integrity checked.
+- [ ] Full tests, vet, build, race, release, and krew install pass.

@@ -117,3 +117,43 @@
 - [x] Publish checksum-pinned archives and update the krew manifest.
 - Dependencies: Tasks 11-13.
 - Files: `docs/*`, `CHANGELOG.md`, `deploy/krew/*`.
+
+## Task 15: Versioned ruleset catalog
+
+- [ ] Define a stable, independently versioned data contract for native rules.
+- [ ] Record official source version, URL, and alignment relationship.
+- [ ] Prove every emitted native rule ID is registered exactly once.
+- Dependencies: Task 3.
+- Files: `internal/rules/*`, `internal/model/*`.
+
+## Task 16: SOC 2 readiness coverage
+
+- [ ] Record the exact ruleset in every report and evidence bundle.
+- [ ] Report assessed references even when no findings are observed.
+- [ ] Use only `attention_required`, `no_findings_observed`, and `not_assessed`.
+- Dependencies: Task 15.
+- Files: `internal/evidence/*`, `cmd/clusterproof/*`.
+
+## Task 17: External PolicyReport import
+
+- [ ] Parse bounded `wgpolicyk8s.io/v1alpha2` JSON without executing policy code.
+- [ ] Normalize fail, warn, and error results; omit pass and skip.
+- [ ] Clean hostile text and reject malformed, oversized, or unsupported input.
+- Dependencies: Task 1.
+- Files: `internal/policyreport/*`, `cmd/clusterproof/*`.
+
+## Task 18: Evidence verification CLI
+
+- [ ] Reject modified, missing, extra, duplicate, symlinked, and oversized files.
+- [ ] Add `clusterproof evidence verify DIR` with deterministic exit semantics.
+- [ ] Add `clusterproof ruleset show` in table and JSON formats.
+- Dependencies: Tasks 15-16.
+- Files: `internal/evidence/*`, `cmd/clusterproof/*`.
+
+## Task 19: v0.3.0 release
+
+- [ ] Document source, licensing, threat-model, and custody boundaries.
+- [ ] Run tests, vet, build, race, abuse checks, and code review.
+- [ ] Publish checksum-pinned archives and update the krew submission.
+- Dependencies: Tasks 15-18.
+- Files: `docs/*`, `CHANGELOG.md`, `deploy/krew/*`.
