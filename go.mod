@@ -1,4 +1,4 @@
-module github.com/kitae1645/clusterproof
+module github.com/DPS0340/clusterproof
 
 go 1.26.0
 

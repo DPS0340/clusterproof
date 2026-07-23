@@ -3,8 +3,8 @@ package rules
 import (
 	"testing"
 
-	"github.com/kitae1645/clusterproof/internal/manifest"
-	"github.com/kitae1645/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/manifest"
+	"github.com/DPS0340/clusterproof/internal/model"
 )
 
 func TestEvaluateSecureWorkloadHasNoFindings(t *testing.T) {

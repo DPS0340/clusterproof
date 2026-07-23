@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kitae1645/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/model"
 )
 
 func TestRunScanReturnsPolicyExitCode(t *testing.T) {

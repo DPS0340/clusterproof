@@ -14,7 +14,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kitae1645/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/model"
 	"gopkg.in/yaml.v3"
 )
 

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/kitae1645/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/model"
 )
 
 // JSON writes deterministic indented JSON.
@@ -65,7 +65,7 @@ func SARIF(writer io.Writer, report model.Report) error {
 			Tool: sarifTool{Driver: sarifDriver{
 				Name:           "ClusterProof",
 				Version:        report.ToolVersion,
-				InformationURI: "https://github.com/kitae1645/clusterproof",
+				InformationURI: "https://github.com/DPS0340/clusterproof",
 				Rules:          sarifRules(report.Findings),
 			}},
 			Results: sarifResults(report.Findings),

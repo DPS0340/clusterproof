@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/kitae1645/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/model"
 )
 
 type report struct {

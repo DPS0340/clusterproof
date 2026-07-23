@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/kitae1645/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/model"
 )
 
 // RunOptions bounds the optional Trivy subprocess.

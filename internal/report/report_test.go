@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kitae1645/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/model"
 )
 
 func TestSARIFContainsRuleAndLocation(t *testing.T) {

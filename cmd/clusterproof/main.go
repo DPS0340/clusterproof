@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kitae1645/clusterproof/internal/evidence"
-	"github.com/kitae1645/clusterproof/internal/manifest"
-	"github.com/kitae1645/clusterproof/internal/model"
-	"github.com/kitae1645/clusterproof/internal/report"
-	"github.com/kitae1645/clusterproof/internal/rules"
-	"github.com/kitae1645/clusterproof/internal/trivy"
+	"github.com/DPS0340/clusterproof/internal/evidence"
+	"github.com/DPS0340/clusterproof/internal/manifest"
+	"github.com/DPS0340/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/report"
+	"github.com/DPS0340/clusterproof/internal/rules"
+	"github.com/DPS0340/clusterproof/internal/trivy"
 )
 
 var version = "dev"

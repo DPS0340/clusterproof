@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kitae1645/clusterproof/internal/manifest"
-	"github.com/kitae1645/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/manifest"
+	"github.com/DPS0340/clusterproof/internal/model"
 )
 
 var severityRank = map[model.Severity]int{
