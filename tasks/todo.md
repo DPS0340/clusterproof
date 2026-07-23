@@ -28,10 +28,10 @@
 
 ## Task 4: Trivy enrichment
 
-- [ ] Normalize bounded Trivy JSON into the shared finding contract.
-- [ ] Run Trivy only when explicitly requested, without a shell.
-- [ ] Enforce timeout and output limits.
-- [ ] Verify with fixture and fake-runner tests.
+- [x] Normalize bounded Trivy JSON into the shared finding contract.
+- [x] Run Trivy only when explicitly requested, without a shell.
+- [x] Enforce timeout and output limits.
+- [x] Verify with fixture and fake-runner tests.
 - Dependencies: Task 1.
 - Files: `internal/trivy/*`, `testdata/trivy/*`.
 
