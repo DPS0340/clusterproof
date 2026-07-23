@@ -5,7 +5,7 @@ metadata:
 spec:
   version: v0.2.0
   homepage: https://github.com/DPS0340/clusterproof
-  shortDescription: Scan Kubernetes security and evidence
+  shortDescription: Scan workloads for security posture and evidence
   description: |
     Scans Kubernetes manifests or a live cluster for workload posture, image
     supply-chain, and vulnerability risks, then emits SARIF and readiness evidence.

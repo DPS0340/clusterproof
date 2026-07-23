@@ -38,7 +38,7 @@ krews:
   - name: clusterproof
     ids:
       - clusterproof
-    short_description: Scan Kubernetes security and evidence
+    short_description: Scan workloads for security posture and evidence
     description: |
       Scans Kubernetes manifests or a live cluster for workload posture, image
       supply-chain, and vulnerability risks, then emits SARIF and readiness evidence.
