@@ -55,9 +55,9 @@
 
 ## Task 7: CLI integration
 
-- [ ] Implement `scan` with formats, enrichment, evidence, and threshold flags.
-- [ ] Return exit codes 0/1/2 per the public contract.
-- [ ] Verify end-to-end with fixtures.
+- [x] Implement `scan` with formats, enrichment, evidence, and threshold flags.
+- [x] Return exit codes 0/1/2 per the public contract.
+- [x] Verify end-to-end with fixtures.
 - Dependencies: Tasks 2-6.
 - Files: `cmd/clusterproof/*`.
 
