@@ -1,0 +1,10 @@
+/clusterproof
+/kubectl-clusterproof
+/dist/
+/.env
+/.env.*
+!/.env.example
+*.pem
+*.key
+*.sarif
+/evidence/

@@ -1,0 +1,56 @@
+version: 2
+
+project_name: clusterproof
+
+builds:
+  - id: clusterproof
+    main: ./cmd/clusterproof
+    binary: kubectl-clusterproof
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: clusterproof
+    ids:
+      - clusterproof
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+krews:
+  - name: clusterproof
+    ids:
+      - clusterproof
+    short_description: Scan Kubernetes security and evidence
+    description: |
+      Scans local Kubernetes manifests for workload posture, image supply-chain,
+      and vulnerability risks, then emits SARIF and readiness evidence.
+    homepage: https://github.com/DPS0340/clusterproof
+    caveats: |
+      Local manifest scanning is offline. The optional --with-trivy flag requires
+      Trivy and may allow Trivy to update its databases.
+    skip_upload: true
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"

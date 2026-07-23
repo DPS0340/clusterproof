@@ -125,7 +125,7 @@ internal/report/        Table, JSON, SARIF, and evidence writers
 testdata/               Benign and intentionally insecure fixtures
 docs/                   Product spec and source notes
 tasks/                  Implementation plan and tracked tasks
-deploy/krew/            Krew manifest template
+deploy/krew/            Krew release and local-install instructions
 .github/workflows/      Pull-request quality gate and tagged release
 .goreleaser.yaml        Reproducible cross-platform release archives
 ```

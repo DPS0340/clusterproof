@@ -63,23 +63,23 @@
 
 ## Task 8: Documentation and final gate
 
-- [ ] Document installation, examples, limits, threat model, and disclaimers.
-- [ ] Document community/commercial boundaries and service-led revenue.
+- [x] Document installation, examples, limits, threat model, and disclaimers.
+- [x] Document community/commercial boundaries and service-led revenue.
 - Dependencies: all product tasks.
 - Files: `README.md`, `SECURITY.md`, `docs/open-core.md`.
 
 ## Task 9: Krew and release automation
 
-- [ ] Build `kubectl-clusterproof` archives for supported OS/architectures.
-- [ ] Add a krew plugin manifest template with immutable checksums.
-- [ ] Run tests, vet, and build on pull requests and main.
-- [ ] Document local krew installation verification.
+- [x] Build `kubectl-clusterproof` archives for supported OS/architectures.
+- [x] Generate checksum-pinned krew manifests from release archives.
+- [x] Run tests, vet, and build on pull requests and main.
+- [x] Document and perform local krew installation verification.
 - Dependencies: Task 7.
 - Files: `.goreleaser.yaml`, `deploy/krew/*`, `.github/workflows/*`.
 
 ## Task 10: Final gate
 
-- [ ] Run `go test ./...`, `go vet ./...`, and `go build ./...`.
-- [ ] Run a real fixture scan and review the diff for secrets.
+- [x] Run `go test ./...`, `go vet ./...`, and `go build ./...`.
+- [x] Run a real fixture scan and review the diff for secrets.
 - Dependencies: all tasks.
 - Files: existing project files.

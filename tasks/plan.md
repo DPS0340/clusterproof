@@ -28,32 +28,32 @@ model contract
 
 ### Phase 1: Foundation
 
-- [ ] Task 1: Initialize module, report contract, and severity policy.
-- [ ] Task 2: Add bounded manifest discovery and workload normalization.
-- [ ] Task 3: Add native Kubernetes and image-integrity rules.
+- [x] Task 1: Initialize module, report contract, and severity policy.
+- [x] Task 2: Add bounded manifest discovery and workload normalization.
+- [x] Task 3: Add native Kubernetes and image-integrity rules.
 
 ### Checkpoint: Native scanner
 
-- [ ] Focused and full tests pass.
-- [ ] Insecure fixture produces deterministic findings.
+- [x] Focused and full tests pass.
+- [x] Insecure fixture produces deterministic findings.
 
 ### Phase 2: Enrichment and Outputs
 
-- [ ] Task 4: Add bounded Trivy JSON import and optional subprocess runner.
-- [ ] Task 5: Add JSON, table, and SARIF reporters.
-- [ ] Task 6: Add immutable evidence bundle and control-family coverage.
-- [ ] Task 7: Wire the CLI and CI exit policy.
+- [x] Task 4: Add bounded Trivy JSON import and optional subprocess runner.
+- [x] Task 5: Add JSON, table, and SARIF reporters.
+- [x] Task 6: Add immutable evidence bundle and control-family coverage.
+- [x] Task 7: Wire the CLI and CI exit policy.
 
 ### Checkpoint: End-to-end
 
-- [ ] One command produces SARIF and evidence.
-- [ ] Threshold exit codes behave as documented.
+- [x] One command produces SARIF and evidence.
+- [x] Threshold exit codes behave as documented.
 
 ### Phase 3: Ship Readiness
 
-- [ ] Task 8: Add README, examples, security notes, and source attribution.
-- [ ] Task 9: Add krew packaging, CI, and tagged release automation.
-- [ ] Task 10: Run tests, vet, build, runtime smoke test, and secret review.
+- [x] Task 8: Add README, examples, security notes, and source attribution.
+- [x] Task 9: Add krew packaging, CI, and tagged release automation.
+- [x] Task 10: Run tests, vet, build, runtime smoke test, and secret review.
 
 ## Risks and Mitigations
 

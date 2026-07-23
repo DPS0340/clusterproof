@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: intentionally-insecure
+  namespace: demo
+spec:
+  hostPID: true
+  containers:
+    - name: app
+      image: nginx:latest
+      securityContext:
+        privileged: true
