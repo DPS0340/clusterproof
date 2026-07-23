@@ -71,12 +71,12 @@ model contract
 - [x] Task 11: Add bounded Kubernetes `List` snapshot normalization.
 - [x] Task 12: Add a read-only kubectl collector with fixed resources and timeouts.
 - [x] Task 13: Add kubeconfig/context/namespace CLI integration.
-- [ ] Task 14: Document the public/commercial boundary and release v0.2.0.
+- [x] Task 14: Document the public/commercial boundary and release v0.2.0.
 
 ### Checkpoint: Cluster scanner
 
 - [x] Fake-kubectl integration proves the exact read-only command and report flow.
-- [ ] Full tests, vet, build, release, and krew install pass.
+- [x] Full tests, vet, build, release, and krew install pass.
 
 ## Open Questions Deferred Beyond v0.2
 

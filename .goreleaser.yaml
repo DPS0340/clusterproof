@@ -40,12 +40,13 @@ krews:
       - clusterproof
     short_description: Scan Kubernetes security and evidence
     description: |
-      Scans local Kubernetes manifests for workload posture, image supply-chain,
-      and vulnerability risks, then emits SARIF and readiness evidence.
+      Scans Kubernetes manifests or a live cluster for workload posture, image
+      supply-chain, and vulnerability risks, then emits SARIF and readiness evidence.
     homepage: https://github.com/DPS0340/clusterproof
     caveats: |
-      Local manifest scanning is offline. The optional --with-trivy flag requires
-      Trivy and may allow Trivy to update its databases.
+      Manifest scanning is offline. Live scanning requires kubectl and an explicit,
+      trusted kubeconfig. The optional --with-trivy flag requires Trivy and may
+      allow Trivy to update its databases.
     skip_upload: true
 
 changelog:

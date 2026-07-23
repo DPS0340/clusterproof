@@ -6,9 +6,9 @@
 2. Run Trivy against the repository and triage all high or critical findings.
 3. Run `goreleaser check`.
 4. Tag an immutable semantic version such as `v0.1.0`.
-5. Verify the GitHub release contains four archives, `checksums.txt`, and the
-   generated `clusterproof.yaml`.
-6. Install one archive with the generated krew manifest and run both secure and
+5. Verify the GitHub release contains four archives and `checksums.txt`, then pin
+   their hashes in `deploy/krew/clusterproof.yaml`.
+6. Install one archive from its public URL with the pinned krew manifest and run both secure and
    insecure fixture scans.
 7. Submit or update the manifest in `kubernetes-sigs/krew-index`.
 

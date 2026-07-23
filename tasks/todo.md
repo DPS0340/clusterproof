@@ -113,7 +113,7 @@
 ## Task 14: v0.2.0 release
 
 - [x] Record the open-core boundary in an ADR.
-- [ ] Run tests, vet, build, abuse checks, and code review.
-- [ ] Publish signed-checksum archives and update the krew manifest.
+- [x] Run tests, vet, build, abuse checks, and code review.
+- [x] Publish checksum-pinned archives and update the krew manifest.
 - Dependencies: Tasks 11-13.
 - Files: `docs/*`, `CHANGELOG.md`, `deploy/krew/*`.
