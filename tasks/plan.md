@@ -91,10 +91,10 @@ model contract
 - [x] Task 16: Replace finding-only control counts with assessed coverage states.
 - [x] Task 17: Add bounded external PolicyReport JSON import.
 - [x] Task 18: Harden bundle verification and expose it through the CLI.
-- [ ] Task 19: Document licensing boundaries and release v0.3.0.
+- [x] Task 19: Document licensing boundaries and release v0.3.0.
 
 ### Checkpoint: Audit-readiness evidence
 
 - [x] No output claims compliance or reproduces licensed criteria text.
 - [x] Every native rule is cataloged and every evidence file is integrity checked.
-- [ ] Full tests, vet, build, race, release, and krew install pass.
+- [x] Full tests, vet, build, race, release, and krew install pass.

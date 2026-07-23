@@ -152,8 +152,8 @@
 
 ## Task 19: v0.3.0 release
 
-- [ ] Document source, licensing, threat-model, and custody boundaries.
-- [ ] Run tests, vet, build, race, abuse checks, and code review.
-- [ ] Publish checksum-pinned archives and update the krew submission.
+- [x] Document source, licensing, threat-model, and custody boundaries.
+- [x] Run tests, vet, build, race, abuse checks, and code review.
+- [x] Publish checksum-pinned archives and update the krew submission.
 - Dependencies: Tasks 15-18.
 - Files: `docs/*`, `CHANGELOG.md`, `deploy/krew/*`.
