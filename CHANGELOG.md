@@ -4,6 +4,8 @@ All notable changes to ClusterProof are documented here.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-23
+
 ### Added
 
 - Read-only live workload scans through an explicit kubeconfig, with optional
