@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/DPS0340/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/rules"
 )
 
 func TestRunScanReturnsPolicyExitCode(t *testing.T) {
@@ -39,6 +40,10 @@ spec:
 	}
 	if scan.Summary.Critical == 0 || scan.Summary.High == 0 {
 		t.Fatalf("expected critical and high findings: %#v", scan.Summary)
+	}
+	if scan.Ruleset == nil || scan.Ruleset.ID != "clusterproof-default" ||
+		scan.Ruleset.Version == "" || scan.Ruleset.RulesEvaluated == 0 {
+		t.Fatalf("ruleset identity missing: %#v", scan.Ruleset)
 	}
 }
 
@@ -74,6 +79,23 @@ spec:
 	}
 	if _, err := os.Stat(filepath.Join(evidence, "bundle-manifest.json")); err != nil {
 		t.Fatalf("evidence bundle missing: %v", err)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"evidence", "verify", evidence}, &stdout, &stderr)
+	if code != 0 || !strings.Contains(stdout.String(), "verified") {
+		t.Fatalf("verify code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+
+	if err := os.WriteFile(filepath.Join(evidence, "scan.json"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatalf("tamper evidence: %v", err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"evidence", "verify", evidence}, &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("tampered verify code = %d, want 1", code)
 	}
 }
 
@@ -149,5 +171,85 @@ func TestParseScanOptionsRequiresExactlyOneTarget(t *testing.T) {
 				t.Fatalf("parseScanOptions(%#v) succeeded", test.args)
 			}
 		})
+	}
+}
+
+func TestRunScanImportsPolicyReportWithoutLeakingMessage(t *testing.T) {
+	root := t.TempDir()
+	manifest := `
+apiVersion: v1
+kind: Pod
+metadata: {name: safe}
+spec:
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile: {type: RuntimeDefault}
+  containers:
+    - name: app
+      image: example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        readOnlyRootFilesystem: true
+        capabilities: {drop: [ALL]}
+`
+	if err := os.WriteFile(filepath.Join(root, "pod.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	policyPath := filepath.Join(t.TempDir(), "policy-report.json")
+	policyReport := `{
+	  "apiVersion":"wgpolicyk8s.io/v1alpha2",
+	  "kind":"PolicyReport",
+	  "scope":{"kind":"Pod","namespace":"default","name":"safe"},
+	  "results":[{
+	    "policy":"require-owner",
+	    "rule":"owner-label",
+	    "result":"fail",
+	    "severity":"medium",
+	    "source":"kyverno",
+	    "message":"SENSITIVE_POLICY_MESSAGE"
+	  }]
+	}`
+	if err := os.WriteFile(policyPath, []byte(policyReport), 0o600); err != nil {
+		t.Fatalf("write PolicyReport: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"scan", root,
+		"--policy-report-json", policyPath,
+		"--format", "json",
+	}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; stderr=%s", code, stderr.String())
+	}
+	var scan model.Report
+	if err := json.Unmarshal(stdout.Bytes(), &scan); err != nil {
+		t.Fatalf("invalid JSON output: %v\n%s", err, stdout.String())
+	}
+	if len(scan.Findings) != 1 || scan.Findings[0].Source != "policyreport:kyverno" {
+		t.Fatalf("unexpected findings: %#v", scan.Findings)
+	}
+	if len(scan.Inputs) != 2 {
+		t.Fatalf("inputs = %#v, want manifest and PolicyReport", scan.Inputs)
+	}
+	if strings.Contains(stdout.String(), "SENSITIVE_POLICY_MESSAGE") {
+		t.Fatalf("PolicyReport message leaked: %s", stdout.String())
+	}
+}
+
+func TestRunRulesetShowJSON(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"ruleset", "show", "--format", "json"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr=%s", code, stderr.String())
+	}
+	var catalog rules.Catalog
+	if err := json.Unmarshal(stdout.Bytes(), &catalog); err != nil {
+		t.Fatalf("invalid catalog JSON: %v\n%s", err, stdout.String())
+	}
+	if catalog.ID != "clusterproof-default" || catalog.Version == "" || len(catalog.Rules) == 0 {
+		t.Fatalf("unexpected catalog: %#v", catalog)
 	}
 }

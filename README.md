@@ -67,11 +67,34 @@ clusterproof scan \
 Exit codes are `0` for a successful policy pass, `2` when findings meet the
 requested threshold, and `1` for operational errors.
 
-Generate immutable technical evidence:
+Inspect the exact native ruleset, generate technical readiness evidence, and
+verify that its file set still matches the bundle manifest:
 
 ```bash
+clusterproof ruleset show
 clusterproof scan --evidence-dir evidence-2026-07-23 ./deploy
+clusterproof evidence verify evidence-2026-07-23
 ```
+
+Import results from a Kyverno or other compatible policy engine without
+downloading or executing its policy code:
+
+```bash
+kubectl get \
+  policyreports.wgpolicyk8s.io,clusterpolicyreports.wgpolicyk8s.io \
+  --all-namespaces \
+  -o json > policy-report.json
+
+clusterproof scan \
+  --policy-report-json policy-report.json \
+  --evidence-dir evidence-2026-07-23 \
+  ./deploy
+```
+
+PolicyReport import currently accepts bounded `wgpolicyk8s.io/v1alpha2` JSON.
+It imports `fail`, `warn`, and `error` outcomes, omits `pass` and `skip`, and
+deliberately excludes source messages because they can contain sensitive
+runtime details.
 
 Explicit Trivy enrichment:
 
@@ -95,15 +118,29 @@ server selected by the provided kubeconfig.
   and scanner output.
 - Never includes Trivy's matched secret value in a report.
 - Refuses to overwrite reports or evidence directories.
-- Does not claim SOC 2 certification. Evidence mappings require customer and
-  auditor review.
+- Evidence statuses are `attention_required`, `no_findings_observed`, and
+  `not_assessed`; they never say `compliant`.
+- Does not claim SOC 2 compliance, examination, or certification. The scanner
+  observes only a subset of CC6/CC7-related Kubernetes and supply-chain
+  mechanisms. Organizational controls require customer and auditor review.
+- The SHA-256 bundle manifest detects changes relative to itself. It is not a
+  signature and does not prove who created the evidence.
+
+The built-in, independently versioned catalog is aligned to Kubernetes Pod
+Security Standards v1.36 and adds clearly labeled ClusterProof checks. It is not
+a complete PSS implementation. See
+[SOC 2 readiness](docs/soc2-readiness.md) and
+[ruleset strategy](docs/rulesets.md) for the exact scope and external-policy
+guidance.
 
 ## Open core
 
-The Apache-2.0 community edition includes every native detection, single-repo and
-single-cluster scanning, Trivy enrichment, JSON/SARIF, evidence snapshots, and CI
-thresholds. Paid products add organization policy packs, baselines, time-bound
-waivers, history, multi-cluster rollups, RBAC, and support.
+The Apache-2.0 community edition includes every native detection, the versioned
+catalog, bounded PolicyReport import, single-repo and single-cluster scanning,
+Trivy enrichment, JSON/SARIF, verifiable one-run evidence, and CI thresholds.
+Paid products add organization policy distribution, licensed/custom control
+maps, baselines, time-bound waivers, history, multi-cluster rollups, RBAC, and
+support.
 
 Paid code is kept in a separate private control-plane repository and consumes
 the versioned JSON report contract. The public binary contains no dormant

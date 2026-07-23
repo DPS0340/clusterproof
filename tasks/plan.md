@@ -10,7 +10,8 @@ bounded enrichment adapter. All outputs share one stable report contract.
 
 - Normalize YAML once, then keep rule evaluation pure and deterministic.
 - Use dependency inversion for external scanners so tests never require network.
-- Treat the evidence bundle as an immutable export and refuse overwrite.
+- Treat the evidence bundle as a new, non-overwriting export with bounded
+  integrity verification.
 - Keep SOC 2 references configurable and high-level; do not embed licensed text.
 - Use exit code `0` for policy pass, `2` for findings at/above threshold, and `1`
   for operational errors.
@@ -78,7 +79,22 @@ model contract
 - [x] Fake-kubectl integration proves the exact read-only command and report flow.
 - [x] Full tests, vet, build, release, and krew install pass.
 
-## Open Questions Deferred Beyond v0.2
+## Open Questions Deferred Beyond v0.3
 
-- Which auditor-approved control catalog should customers import?
+- Which customer-supplied control-catalog and OSCAL profiles should the
+  commercial adapter support first?
 - Which signature identity policy should gate Sigstore verification?
+
+### Phase 5: SOC 2 Technical Readiness
+
+- [x] Task 15: Add a versioned native ruleset catalog grounded in Kubernetes PSS.
+- [x] Task 16: Replace finding-only control counts with assessed coverage states.
+- [x] Task 17: Add bounded external PolicyReport JSON import.
+- [x] Task 18: Harden bundle verification and expose it through the CLI.
+- [ ] Task 19: Document licensing boundaries and release v0.3.0.
+
+### Checkpoint: Audit-readiness evidence
+
+- [x] No output claims compliance or reproduces licensed criteria text.
+- [x] Every native rule is cataloged and every evidence file is integrity checked.
+- [ ] Full tests, vet, build, race, release, and krew install pass.

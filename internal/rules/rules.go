@@ -141,7 +141,7 @@ func evaluateContainer(workload manifest.Workload, container manifest.Container)
 			"A missing or unconfined seccomp profile leaves unnecessary kernel syscalls available.",
 			"Set seccompProfile.type to RuntimeDefault or a reviewed Localhost profile.",
 			model.Evidence{Observed: observed, Expected: "RuntimeDefault or Localhost"},
-			"SOC2:CC6", "Kubernetes:PSS-Baseline",
+			"SOC2:CC6", "Kubernetes:PSS-Restricted",
 		))
 	}
 

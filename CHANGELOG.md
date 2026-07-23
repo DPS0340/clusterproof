@@ -4,6 +4,23 @@ All notable changes to ClusterProof are documented here.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-23
+
+### Added
+
+- Independently versioned native ruleset catalog with Kubernetes PSS v1.36
+  alignment and explicit supplemental checks.
+- SOC 2 technical-readiness coverage states for assessed references, including
+  no-finding observations without compliance claims.
+- Separate native assessed-rule coverage from external finding-rule observations.
+- Bounded `wgpolicyk8s.io/v1alpha2` PolicyReport result import.
+- `clusterproof ruleset show` and offline `clusterproof evidence verify`.
+
+### Security
+
+- Evidence verification now rejects extra, missing, duplicate, modified,
+  symlinked, non-regular, unsafe, and oversized bundle content.
+
 ## [0.2.0] - 2026-07-23
 
 ### Added
@@ -21,6 +38,6 @@ All notable changes to ClusterProof are documented here.
 - Offline Kubernetes manifest checks for workload posture and image integrity.
 - Optional bounded Trivy vulnerability, misconfiguration, and secret enrichment.
 - Table, JSON, and SARIF reports with CI severity exit codes.
-- Immutable, SHA-256-verified SOC 2 readiness evidence bundles.
+- SHA-256 integrity-checked SOC 2 readiness evidence bundles.
 - GoReleaser archives and generated krew plugin manifest support.
 - Apache-2.0 community core and documented commercial edition boundary.
