@@ -157,3 +157,399 @@
 - [x] Publish checksum-pinned archives and update the krew submission.
 - Dependencies: Tasks 15-18.
 - Files: `docs/*`, `CHANGELOG.md`, `deploy/krew/*`.
+
+## Task 20: Supported PSS version and OS contract
+
+**Description:** Define exactly which Kubernetes minor versions and Linux/Windows
+Pod Security Standard semantics the built-in catalog evaluates.
+
+**Acceptance criteria:**
+- [ ] Catalog metadata identifies the Kubernetes minor and applicable workload OS.
+- [ ] Linux-only checks do not apply when `spec.os.name` is `windows`.
+- [ ] An unsupported or ambiguous version is reported explicitly, never treated as `latest`.
+
+**Verification:**
+- [ ] Table-driven tests cover supported version/OS combinations and unsupported input.
+- [ ] `clusterproof ruleset show --format json` exposes the version contract.
+
+**Dependencies:** Task 15
+**Files likely touched:** `internal/manifest/*`, `internal/rules/*`, `docs/rulesets.md`
+**Estimated scope:** Medium
+
+## Task 21: Complete PSS conformance coverage
+
+**Description:** Fill the remaining PSS Baseline and Restricted gaps and generate
+a machine-readable coverage matrix that distinguishes aligned, partial, and
+supplemental behavior.
+
+**Acceptance criteria:**
+- [ ] Every applicable PSS v1.36 field has a conformance fixture and catalog entry.
+- [ ] Host ports, volume types, proc settings, sysctls, AppArmor/SELinux, and OS-specific behavior are covered.
+- [ ] The matrix never claims complete coverage while an applicable field is missing.
+
+**Verification:**
+- [ ] Upstream-aligned allow/deny fixtures pass for Baseline and Restricted.
+- [ ] Catalog drift tests prove every emitted native rule is registered once.
+
+**Dependencies:** Task 20
+**Files likely touched:** `internal/manifest/*`, `internal/rules/*`, `testdata/*`, `docs/*`
+**Estimated scope:** Medium
+
+## Task 22: Bounded stream input
+
+**Description:** Accept rendered JSON or YAML from stdin so callers can use Helm
+or Kustomize without ClusterProof invoking a renderer.
+
+**Acceptance criteria:**
+- [ ] `clusterproof scan -` accepts bounded multi-document JSON/YAML.
+- [ ] Stdin cannot be combined with a repository path or live cluster target.
+- [ ] Stream byte, document, object, and nesting limits fail closed.
+
+**Verification:**
+- [ ] CLI tests cover valid streams, empty input, malformed input, and every limit.
+- [ ] A manual Helm/Kustomize pipe smoke test produces the same findings as a saved render.
+
+**Dependencies:** Task 21
+**Files likely touched:** `internal/manifest/*`, `cmd/clusterproof/*`, `README.md`
+**Estimated scope:** Medium
+
+## Task 23: Repository-owned local exceptions
+
+**Description:** Add a deterministic Community exception file while reserving
+central approval and retained waiver history for paid editions.
+
+**Acceptance criteria:**
+- [ ] Each exception requires rule, target, owner, reason, and expiry.
+- [ ] Expired or malformed exceptions do not suppress findings.
+- [ ] Reports and evidence record suppressed finding identity without source secret values.
+
+**Verification:**
+- [ ] Tests cover exact matching, non-matching, expiry, duplicates, malformed files, and limits.
+- [ ] JSON/SARIF/evidence remain deterministic with and without exceptions.
+
+**Dependencies:** Tasks 21-22
+**Files likely touched:** `internal/exception/*`, `internal/model/*`, `cmd/clusterproof/*`, `docs/*`
+**Estimated scope:** Medium
+
+## Task 24: Public schema lifecycle
+
+**Description:** Publish machine-readable schemas and compatibility fixtures for
+the report, ruleset, evidence, and exception contracts.
+
+**Acceptance criteria:**
+- [ ] Schemas are versioned independently and reject structurally invalid examples.
+- [ ] Additive minor-version fields remain decodable by the previous supported consumer.
+- [ ] Breaking changes require a new schema major and migration note.
+
+**Verification:**
+- [ ] CI validates every fixture against its schema.
+- [ ] Backward-compatibility tests decode v0.3 fixtures with current code.
+
+**Dependencies:** Task 23
+**Files likely touched:** `schemas/*`, `internal/model/*`, `.github/workflows/*`, `docs/*`
+**Estimated scope:** Medium
+
+## Task 25: Rule explanation and assessment diagnostics
+
+**Description:** Make every result actionable and distinguish secure, empty,
+unsupported, and partially assessed scans.
+
+**Acceptance criteria:**
+- [ ] `clusterproof explain RULE_ID` shows source, scope, evidence, and remediation.
+- [ ] Empty and unsupported input cannot produce a misleading clean assessment.
+- [ ] Partial assessment lists the exact unassessed resource or rule scope.
+
+**Verification:**
+- [ ] CLI tests cover known/unknown rules and all assessment states.
+- [ ] Table, JSON, SARIF, and evidence render the same assessment semantics.
+
+**Dependencies:** Tasks 21 and 24
+**Files likely touched:** `cmd/clusterproof/*`, `internal/model/*`, `internal/report/*`, `docs/*`
+**Estimated scope:** Medium
+
+## Task 26: First-party CI distribution and v0.4
+
+**Description:** Ship a checksum-pinned GitHub Action or reusable workflow and
+release the trustworthy daily-use milestone.
+
+**Acceptance criteria:**
+- [ ] The workflow pins a released binary and verifies SHA-256 before execution.
+- [ ] Users can upload SARIF and evidence without granting write access to a cluster.
+- [ ] v0.4 release notes document compatibility and rollback.
+
+**Verification:**
+- [ ] A public example repository passes and fails on the expected fixtures.
+- [ ] Tests, race, vet, static analysis, release archives, and Krew install pass.
+
+**Dependencies:** Tasks 20-25
+**Files likely touched:** `action.yml`, `.github/*`, `examples/*`, `docs/*`, `deploy/krew/*`
+**Estimated scope:** Medium
+
+## Task 27: Cluster scopes and partial assessment
+
+**Description:** Define opt-in workload, access, and network scope packs with
+fixed read allowlists and explicit permission preflight.
+
+**Acceptance criteria:**
+- [ ] Every scope has a versioned resource/verb allowlist.
+- [ ] Permission denial is represented as partial or not assessed.
+- [ ] Default behavior remains the current workload-only read.
+
+**Verification:**
+- [ ] Fake-kubectl tests assert every exact command and rejected argument.
+- [ ] Evidence lists collected, denied, absent, and unrequested scopes separately.
+
+**Dependencies:** Tasks 24-25
+**Files likely touched:** `internal/cluster/*`, `internal/model/*`, `cmd/clusterproof/*`, `docs/*`
+**Estimated scope:** Medium
+
+## Task 28: Namespace Pod Security Admission assessment
+
+**Description:** Assess Namespace Pod Security Admission enforce, audit, and warn
+labels together with their pinned policy versions.
+
+**Acceptance criteria:**
+- [ ] Missing, `latest`, inconsistent, and weaker-than-configured labels are distinguished.
+- [ ] Namespace exemptions are observations, not automatically labeled vulnerabilities.
+- [ ] Results map to versioned upstream Pod Security Admission guidance.
+
+**Verification:**
+- [ ] Fixtures cover all modes, levels, version labels, and namespace edge cases.
+- [ ] Cluster collection requests Namespace metadata only.
+
+**Dependencies:** Task 27
+**Files likely touched:** `internal/cluster/*`, `internal/manifest/*`, `internal/rules/*`, `docs/*`
+**Estimated scope:** Medium
+
+## Task 29: Bounded RBAC relationship analysis
+
+**Description:** Build a bounded graph of RBAC grants and service-account usage
+to identify high-signal privilege paths.
+
+**Acceptance criteria:**
+- [ ] Rules cover wildcards, Secrets access, workload creation, `pods/exec`, impersonation, bind, and escalate.
+- [ ] Findings identify the subject-to-role path without exposing credential data.
+- [ ] Graph node, edge, depth, and output limits fail closed.
+
+**Verification:**
+- [ ] Fixtures cover namespaced/cluster bindings, aggregation, groups, and cycles.
+- [ ] The collector requests only RBAC metadata and workload service-account names.
+
+**Dependencies:** Tasks 27-28
+**Files likely touched:** `internal/cluster/*`, `internal/rbac/*`, `internal/model/*`, `cmd/clusterproof/*`
+**Estimated scope:** Medium
+
+## Task 30: Network policy and exposure analysis
+
+**Description:** Relate workloads to NetworkPolicies and supported exposure
+resources while documenting CNI-dependent limitations.
+
+**Acceptance criteria:**
+- [ ] Detect absent default-deny coverage and externally exposed sensitive workloads.
+- [ ] Selector, namespace, ingress, egress, Service, Ingress, and supported Gateway relationships are bounded.
+- [ ] Results never claim effective packet filtering without a supported CNI signal.
+
+**Verification:**
+- [ ] Fixtures cover selector overlap, empty selectors, dual-stack data, and unselected workloads.
+- [ ] Collection and graph-size abuse tests pass.
+
+**Dependencies:** Task 27
+**Files likely touched:** `internal/cluster/*`, `internal/network/*`, `internal/model/*`, `cmd/clusterproof/*`
+**Estimated scope:** Medium
+
+## Task 31: Deterministic snapshot comparison
+
+**Description:** Compare two local reports or evidence bundles without retaining
+history in a service.
+
+**Acceptance criteria:**
+- [ ] Output classifies new, resolved, unchanged, and severity-changed findings.
+- [ ] Incompatible schema/ruleset versions fail with a migration-oriented error.
+- [ ] Comparison is deterministic and contains both input hashes.
+
+**Verification:**
+- [ ] Tests cover ordering, duplicates, changed locations, and incompatible inputs.
+- [ ] `clusterproof compare BEFORE AFTER` works for JSON and evidence directories.
+
+**Dependencies:** Tasks 24 and 27
+**Files likely touched:** `internal/compare/*`, `internal/model/*`, `cmd/clusterproof/*`, `docs/*`
+**Estimated scope:** Medium
+
+## Task 32: Experimental OpenReports adapter
+
+**Description:** Import bounded `openreports.io/v1alpha1` Report and ClusterReport
+objects behind an explicit experimental adapter.
+
+**Acceptance criteria:**
+- [ ] Supported API/kind combinations and resource limits are allowlisted.
+- [ ] Import never installs CRDs or executes producer policy code.
+- [ ] Adapter version and input hash are recorded in the report.
+
+**Verification:**
+- [ ] Tests cover current upstream examples, unknown fields/outcomes, lists, and limits.
+- [ ] Existing `wgpolicyk8s.io/v1alpha2` behavior remains unchanged.
+
+**Dependencies:** Tasks 24 and 27
+**Files likely touched:** `internal/openreports/*`, `internal/model/*`, `cmd/clusterproof/*`, `docs/*`
+**Estimated scope:** Medium
+
+## Task 33: v0.5 performance and release gate
+
+**Description:** Establish the broader cluster-scan resource budget and release
+the attack-surface milestone.
+
+**Acceptance criteria:**
+- [ ] A 5,000-workload reference fixture stays under 10 seconds and 512 MiB on documented hardware.
+- [ ] Missing permissions and resource limits produce complete partial-assessment evidence.
+- [ ] Release documentation lists the additional Kubernetes read permissions.
+
+**Verification:**
+- [ ] Benchmarks, fuzz/abuse tests, race, vet, static analysis, and builds pass.
+- [ ] Release archives and a fresh Krew installation report v0.5.
+
+**Dependencies:** Tasks 27-32
+**Files likely touched:** `internal/*`, `testdata/*`, `docs/*`, `deploy/krew/*`
+**Estimated scope:** Medium
+
+## Task 34: Supply-chain trust policy
+
+**Description:** Define a data-only trust policy for signatures, identities,
+issuers, builders, sources, and allowed attestation predicates.
+
+**Acceptance criteria:**
+- [ ] The contract is versioned, bounded, and contains no private key material.
+- [ ] Keyless identities require both certificate identity and OIDC issuer.
+- [ ] Unknown policy fields or unsupported predicates fail closed.
+
+**Verification:**
+- [ ] Schema and parser tests cover valid, ambiguous, hostile, and oversized policy files.
+- [ ] `clusterproof trust show` renders the exact effective policy.
+
+**Dependencies:** Task 24
+**Files likely touched:** `internal/trust/*`, `internal/model/*`, `schemas/*`, `docs/*`
+**Estimated scope:** Medium
+
+## Task 35: Image inventory and digest resolution
+
+**Description:** Export deterministic image inventory and optionally resolve tags
+to exact registry digests.
+
+**Acceptance criteria:**
+- [ ] Offline inventory works without registry access.
+- [ ] Resolution requires explicit opt-in, timeout, registry allowlist, and output limits.
+- [ ] Registry credentials and tokens are never persisted or emitted.
+
+**Verification:**
+- [ ] Fake-registry tests cover digest match, tag movement, auth failure, timeout, and oversized response.
+- [ ] Evidence records the resolved digest, registry, timestamp, and network use.
+
+**Dependencies:** Task 34
+**Files likely touched:** `internal/image/*`, `internal/model/*`, `cmd/clusterproof/*`, `docs/*`
+**Estimated scope:** Medium
+
+## Task 36: Sigstore signature verification
+
+**Description:** Verify image signatures and offline bundles against the explicit
+trust policy.
+
+**Acceptance criteria:**
+- [ ] Verification binds the signature payload to the exact image digest.
+- [ ] Online lookup is opt-in; an offline bundle never triggers hidden network access.
+- [ ] Wrong identity, issuer, key, digest, expiry, or transparency proof fails.
+
+**Verification:**
+- [ ] Hermetic fixtures cover key, keyless, offline, malformed, and timeout paths.
+- [ ] Any subprocess uses fixed arguments, no shell, and bounded stdout/stderr.
+
+**Dependencies:** Tasks 34-35
+**Files likely touched:** `internal/sigstore/*`, `internal/model/*`, `cmd/clusterproof/*`, `docs/*`
+**Estimated scope:** Medium
+
+## Task 37: SLSA provenance verification
+
+**Description:** Verify SLSA v1.2 provenance subject, builder, and source
+expectations against the resolved artifact.
+
+**Acceptance criteria:**
+- [ ] The subject digest must match the resolved image digest.
+- [ ] Builder, source repository, and predicate type are checked only against explicit policy.
+- [ ] Unsupported SLSA versions or incomplete statements fail as not verified.
+
+**Verification:**
+- [ ] Tests cover valid provenance, wrong subject/builder/source, and oversized statements.
+- [ ] Findings distinguish missing, invalid, and policy-mismatched provenance.
+
+**Dependencies:** Tasks 34-36
+**Files likely touched:** `internal/slsa/*`, `internal/model/*`, `cmd/clusterproof/*`, `docs/*`
+**Estimated scope:** Medium
+
+## Task 38: SBOM and VEX import
+
+**Description:** Import bounded SPDX/CycloneDX inventories and VEX status without
+turning absence of a vulnerability record into proof of safety.
+
+**Acceptance criteria:**
+- [ ] Supported schema versions, package counts, strings, and relationships are bounded.
+- [ ] VEX status applies only to an exact product/package/vulnerability identity.
+- [ ] Unknown or stale VEX data cannot silently clear a finding.
+
+**Verification:**
+- [ ] Fixtures cover both SBOM formats, duplicate packages, malformed graphs, and VEX edge cases.
+- [ ] Input hashes and adapter versions appear in reports and evidence.
+
+**Dependencies:** Tasks 34-35
+**Files likely touched:** `internal/sbom/*`, `internal/vex/*`, `internal/model/*`, `cmd/clusterproof/*`
+**Estimated scope:** Medium
+
+## Task 39: Evidence authenticity
+
+**Description:** Add signing and signer verification for the existing evidence
+manifest while retaining unsigned integrity verification.
+
+**Acceptance criteria:**
+- [ ] Output distinguishes integrity-verified, signature-verified, and unverified states.
+- [ ] Signing is explicit and does not make ClusterProof a private-key store.
+- [ ] Signer identity, issuer/key reference, algorithm, and verification time are recorded.
+
+**Verification:**
+- [ ] Tests reject modified manifests, wrong signers, expired material, symlinks, and oversized signatures.
+- [ ] Offline verification succeeds with the complete required trust bundle.
+
+**Dependencies:** Tasks 34 and 36
+**Files likely touched:** `internal/evidence/*`, `internal/trust/*`, `cmd/clusterproof/*`, `docs/*`
+**Estimated scope:** Medium
+
+## Task 40: v0.6 offline/network abuse gate
+
+**Description:** Validate the full supply-chain mode matrix and release v0.6.
+
+**Acceptance criteria:**
+- [ ] Offline mode makes no network request and rejects missing remote material explicitly.
+- [ ] Every online request is opt-in, bounded, allowlisted, and represented in evidence.
+- [ ] Rollback to the previous supported release preserves readable evidence.
+
+**Verification:**
+- [ ] Network-denial, malicious-registry, forged-attestation, fuzz, race, vet, static analysis, and build checks pass.
+- [ ] Release archives and a fresh Krew installation report v0.6.
+
+**Dependencies:** Tasks 34-39
+**Files likely touched:** `internal/*`, `testdata/*`, `.github/*`, `docs/*`, `deploy/krew/*`
+**Estimated scope:** Medium
+
+## Task 41: Commercial discovery gate
+
+**Description:** Validate repeatable customer pain before specifying or building
+the separate Team control plane.
+
+**Acceptance criteria:**
+- [ ] Five design-partner interviews and three weekly active teams are documented.
+- [ ] Two paid engagements or pilots validate willingness to pay.
+- [ ] At least three teams share the same history, baseline, waiver, or rollup problem.
+
+**Verification:**
+- [ ] A reviewed commercial spec defines tenants, data custody, auth/RBAC, retention, audit events, and open-core boundaries.
+- [ ] No control-plane implementation starts until the gate is explicitly approved.
+
+**Dependencies:** Tasks 26-40 may inform discovery; no technical dependency blocks interviews
+**Files likely touched:** `docs/private-product-spec.md` in the private repository, design-partner research records
+**Estimated scope:** Medium

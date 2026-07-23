@@ -1,4 +1,4 @@
-# Implementation Plan: ClusterProof MVP
+# Implementation Plan: ClusterProof
 
 ## Overview
 
@@ -98,3 +98,93 @@ model contract
 - [x] No output claims compliance or reproduces licensed criteria text.
 - [x] Every native rule is cataloged and every evidence file is integrity checked.
 - [x] Full tests, vet, build, race, release, and krew install pass.
+
+## Roadmap Dependency Graph
+
+```text
+PSS version/OS contract
+  -> complete conformance fixtures
+  -> stream input + local exceptions + schema lifecycle
+  -> v0.4 trustworthy CI workflow
+
+cluster collection scope contract
+  -> PSA / RBAC / NetworkPolicy analyzers
+  -> snapshot comparison + OpenReports adapter
+  -> v0.5 cluster posture
+
+supply-chain trust policy
+  -> image digest resolution
+  -> Sigstore + SLSA + SBOM/VEX adapters
+  -> signed evidence
+  -> v0.6 verifiable supply chain
+
+repeated customer pain + paid pilots
+  -> commercial control-plane specification
+  -> Team and Enterprise implementation
+```
+
+The full product and commercial milestones are in `docs/roadmap.md`. Only the
+Community phases and the commercial discovery gate are decomposed below. Team
+control-plane implementation must not begin before Task 41 is complete.
+
+### Phase 6: v0.4 Trustworthy Daily Use
+
+- [ ] Task 20: Define the supported PSS version and workload OS contract.
+- [ ] Task 21: Complete PSS Baseline and Restricted conformance coverage.
+- [ ] Task 22: Add bounded stdin and rendered-manifest input.
+- [ ] Task 23: Add repository-owned local exception files.
+- [ ] Task 24: Publish report schemas and compatibility policy.
+- [ ] Task 25: Add rule explanation and assessment diagnostics.
+- [ ] Task 26: Ship a checksum-pinned GitHub Action and v0.4 release.
+
+### Checkpoint: Trustworthy CI adoption
+
+- [ ] Linux and Windows PSS semantics pass versioned conformance fixtures.
+- [ ] A rendered manifest can be piped without executing a renderer.
+- [ ] v0.3 report consumers remain compatible.
+- [ ] The public quickstart reaches a working CI gate in under 15 minutes.
+
+### Phase 7: v0.5 Cluster Attack Surface
+
+- [ ] Task 27: Define opt-in cluster scopes and partial-assessment evidence.
+- [ ] Task 28: Assess namespace Pod Security Admission configuration.
+- [ ] Task 29: Add bounded RBAC relationship analysis.
+- [ ] Task 30: Add NetworkPolicy and workload-exposure analysis.
+- [ ] Task 31: Add deterministic two-snapshot comparison.
+- [ ] Task 32: Add an experimental bounded OpenReports adapter.
+- [ ] Task 33: Performance-test and release v0.5.
+
+### Checkpoint: Broader read-only cluster posture
+
+- [ ] Every Kubernetes request remains a fixed, tested read.
+- [ ] Missing permissions never appear as a successful assessment.
+- [ ] No Secret or ConfigMap payload, log, event, or mutation is requested.
+- [ ] A 5,000-workload fixture stays within the published resource budget.
+
+### Phase 8: v0.6 Verifiable Supply Chain
+
+- [ ] Task 34: Define the supply-chain trust-policy contract.
+- [ ] Task 35: Export image inventory and resolve tags to digests explicitly.
+- [ ] Task 36: Verify Sigstore signatures with pinned identities.
+- [ ] Task 37: Verify SLSA v1.2 provenance against exact subjects.
+- [ ] Task 38: Import bounded SPDX/CycloneDX SBOM and VEX data.
+- [ ] Task 39: Sign and authenticate evidence manifests.
+- [ ] Task 40: Abuse-test offline and networked modes and release v0.6.
+
+### Checkpoint: Cryptographic evidence
+
+- [ ] Floating tags alone can never satisfy signature or provenance policy.
+- [ ] Every network request is opt-in and represented in evidence.
+- [ ] Offline verification works from self-contained bundles.
+- [ ] Wrong identities, issuers, subjects, builders, and expired material fail.
+
+### Phase 9 Gate: Commercial Discovery
+
+- [ ] Task 41: Validate repeated team workflow pain and write the commercial spec.
+
+### Checkpoint: Authorize Team implementation
+
+- [ ] Five design-partner interviews are complete.
+- [ ] Three teams run ClusterProof weekly.
+- [ ] Two teams have paid for an engagement or pilot.
+- [ ] At least three teams share the same history, baseline, waiver, or rollup pain.
