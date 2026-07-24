@@ -25,6 +25,7 @@ import (
 	"github.com/DPS0340/clusterproof/internal/report"
 	"github.com/DPS0340/clusterproof/internal/rules"
 	"github.com/DPS0340/clusterproof/internal/trivy"
+	"github.com/DPS0340/clusterproof/internal/trust"
 )
 
 var version = "dev"
@@ -74,6 +75,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return runExplain(args[1:], stdout, stderr)
 	case "compare":
 		return runCompare(args[1:], stdout, stderr)
+	case "trust":
+		return runTrust(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
 		printUsage(stderr)
@@ -217,6 +220,114 @@ func printCompareUsage(writer io.Writer) {
 Compares two scan reports deterministically. BEFORE and AFTER may each be a
 JSON report file or an evidence bundle directory. Exit code 2 means new or
 escalated findings; both input hashes are recorded in the output.`)
+}
+
+func runTrust(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
+		printTrustUsage(stdout)
+		return 0
+	}
+	if len(args) < 1 || args[0] != "show" {
+		fmt.Fprintln(stderr, "clusterproof: trust requires: show POLICY_PATH")
+		printTrustUsage(stderr)
+		return 1
+	}
+	format := "table"
+	var policyPath string
+	for index := 1; index < len(args); index++ {
+		current := args[index]
+		switch {
+		case current == "--format":
+			if index+1 >= len(args) {
+				fmt.Fprintln(stderr, "clusterproof: --format requires a value")
+				return 1
+			}
+			format = args[index+1]
+			index++
+		case strings.HasPrefix(current, "--format="):
+			format = strings.TrimPrefix(current, "--format=")
+		case strings.HasPrefix(current, "-"):
+			fmt.Fprintf(stderr, "clusterproof: unknown trust flag %q\n", current)
+			return 1
+		default:
+			if policyPath != "" {
+				fmt.Fprintln(stderr, "clusterproof: trust show accepts exactly one policy path")
+				return 1
+			}
+			policyPath = current
+		}
+	}
+	if policyPath == "" {
+		fmt.Fprintln(stderr, "clusterproof: trust show requires a policy path")
+		return 1
+	}
+
+	policy, err := trust.Load(policyPath, trust.DefaultLimits())
+	if err != nil {
+		fmt.Fprintf(stderr, "clusterproof: load trust policy: %v\n", err)
+		return 1
+	}
+
+	switch format {
+	case "json":
+		encoder := json.NewEncoder(stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(policy); err != nil {
+			fmt.Fprintf(stderr, "clusterproof: write trust policy JSON: %v\n", err)
+			return 1
+		}
+	case "table":
+		fmt.Fprintf(stdout, "Trust policy (schema %s)\n\n", policy.SchemaVersion)
+		if len(policy.Identities) > 0 {
+			fmt.Fprintln(stdout, "Keyless identities (subject AND issuer must match):")
+			for _, identity := range policy.Identities {
+				fmt.Fprintf(stdout, "  - subject: %s\n    issuer:  %s\n", identity.Subject, identity.Issuer)
+			}
+			fmt.Fprintln(stdout)
+		}
+		if len(policy.Keys) > 0 {
+			fmt.Fprintln(stdout, "Public keys:")
+			for _, key := range policy.Keys {
+				source := "inline PEM"
+				if key.Path != "" {
+					source = key.Path
+				}
+				fmt.Fprintf(stdout, "  - %s (%s)\n", key.Name, source)
+			}
+			fmt.Fprintln(stdout)
+		}
+		if policy.Provenance != nil {
+			fmt.Fprintln(stdout, "Provenance expectations:")
+			if policy.Provenance.BuilderID != "" {
+				fmt.Fprintf(stdout, "  builder_id:        %s\n", policy.Provenance.BuilderID)
+			}
+			if policy.Provenance.SourceRepository != "" {
+				fmt.Fprintf(stdout, "  source_repository: %s\n", policy.Provenance.SourceRepository)
+			}
+			fmt.Fprintln(stdout)
+		}
+		if len(policy.AllowedPredicateTypes) > 0 {
+			fmt.Fprintln(stdout, "Allowed predicate types:")
+			for _, predicate := range policy.AllowedPredicateTypes {
+				fmt.Fprintf(stdout, "  - %s\n", predicate)
+			}
+		} else {
+			fmt.Fprintln(stdout, "Allowed predicate types: none (all attestations fail closed)")
+		}
+	default:
+		fmt.Fprintln(stderr, "clusterproof: trust format must be table or json")
+		return 1
+	}
+	return 0
+}
+
+func printTrustUsage(writer io.Writer) {
+	fmt.Fprintln(writer, `Usage:
+  clusterproof trust show [--format table|json] POLICY_PATH
+
+Shows the exact effective supply-chain trust policy. The policy is data
+only: it pins identities, issuers, public keys, builders, sources, and
+allowed predicate types, and never contains private key material.`)
 }
 
 func printExplainUsage(writer io.Writer) {
@@ -698,6 +809,7 @@ Usage:
   clusterproof ruleset show [--format table|json]
   clusterproof explain RULE_ID
   clusterproof compare BEFORE AFTER
+  clusterproof trust show POLICY_PATH
   clusterproof version
 
 Run "clusterproof scan --help" for scan flags.`)

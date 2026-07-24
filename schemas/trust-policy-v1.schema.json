@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/DPS0340/clusterproof/schemas/trust-policy-v1.schema.json",
+  "title": "ClusterProof supply-chain trust policy v1",
+  "description": "Data-only trust contract for signature and provenance verification. Keyless identities require both subject and issuer. Never contains private key material.",
+  "type": "object",
+  "required": ["schema_version"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "identities": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "required": ["subject", "issuer"],
+        "additionalProperties": false,
+        "properties": {
+          "subject": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "issuer": { "type": "string", "pattern": "^https://", "maxLength": 2000 }
+        }
+      }
+    },
+    "keys": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "public_key_pem": { "type": "string", "pattern": "BEGIN PUBLIC KEY" },
+          "path": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        },
+        "oneOf": [
+          { "required": ["public_key_pem"] },
+          { "required": ["path"] }
+        ]
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "builder_id": { "type": "string", "maxLength": 2000 },
+        "source_repository": { "type": "string", "maxLength": 2000 }
+      },
+      "anyOf": [
+        { "required": ["builder_id"] },
+        { "required": ["source_repository"] }
+      ]
+    },
+    "allowed_predicate_types": {
+      "type": "array",
+      "maxItems": 50,
+      "items": { "type": "string", "pattern": "^https://", "maxLength": 2000 }
+    }
+  },
+  "anyOf": [
+    { "required": ["identities"] },
+    { "required": ["keys"] }
+  ]
+}

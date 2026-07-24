@@ -417,13 +417,13 @@ the attack-surface milestone.
 issuers, builders, sources, and allowed attestation predicates.
 
 **Acceptance criteria:**
-- [ ] The contract is versioned, bounded, and contains no private key material.
-- [ ] Keyless identities require both certificate identity and OIDC issuer.
-- [ ] Unknown policy fields or unsupported predicates fail closed.
+- [x] The contract is versioned, bounded, and contains no private key material.
+- [x] Keyless identities require both certificate identity and OIDC issuer.
+- [x] Unknown policy fields or unsupported predicates fail closed.
 
 **Verification:**
-- [ ] Schema and parser tests cover valid, ambiguous, hostile, and oversized policy files.
-- [ ] `clusterproof trust show` renders the exact effective policy.
+- [x] Schema and parser tests cover valid, ambiguous, hostile, and oversized policy files.
+- [x] `clusterproof trust show` renders the exact effective policy.
 
 **Dependencies:** Task 24
 **Files likely touched:** `internal/trust/*`, `internal/model/*`, `schemas/*`, `docs/*`
