@@ -1,0 +1,45 @@
+# Example: gate pull requests on ClusterProof findings and upload SARIF.
+#
+# Copy this file into .github/workflows/ of your repository, pin `version`
+# to a released ClusterProof version, and paste the matching SHA-256 from
+# that release's checksums.txt. The scan is read-only and local: it never
+# contacts a cluster and uploads nothing except the SARIF you choose to
+# upload.
+
+name: ClusterProof
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  security-events: write # only needed for the SARIF upload step
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Scan Kubernetes manifests
+        uses: DPS0340/clusterproof@v0.4.0
+        with:
+          version: "0.4.0"
+          # SHA-256 of clusterproof_0.4.0_linux_amd64.tar.gz from checksums.txt:
+          checksum: "REPLACE_WITH_RELEASE_CHECKSUM"
+          path: ./deploy
+          fail-on: high
+          sarif-output: clusterproof.sarif
+          # Optional: apply reviewed repository exceptions.
+          # exceptions: .clusterproof-exceptions.yaml
+
+      - name: Upload SARIF to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: clusterproof.sarif

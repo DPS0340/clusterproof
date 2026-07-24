@@ -1,0 +1,102 @@
+name: "ClusterProof Scan"
+description: >-
+  Scan Kubernetes manifests with a released, checksum-verified ClusterProof
+  binary. The action never builds from source and never contacts a cluster.
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  version:
+    description: "ClusterProof release version to download, such as 0.4.0."
+    required: true
+  checksum:
+    description: >-
+      Expected SHA-256 of the release archive for the runner OS/architecture.
+      Copy it from the checksums.txt asset of the pinned release. The action
+      fails when the downloaded archive does not match.
+    required: true
+  path:
+    description: "Repository path to scan."
+    required: false
+    default: "."
+  fail-on:
+    description: "Severity threshold that fails the job (info|low|medium|high|critical)."
+    required: false
+    default: "high"
+  sarif-output:
+    description: "Write a SARIF report to this path for code-scanning upload."
+    required: false
+    default: ""
+  evidence-dir:
+    description: "Create an integrity-checked evidence bundle in this new directory."
+    required: false
+    default: ""
+  exceptions:
+    description: "Apply a reviewed repository exception file."
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Download and verify pinned release
+      shell: bash
+      env:
+        CP_VERSION: ${{ inputs.version }}
+        CP_CHECKSUM: ${{ inputs.checksum }}
+      run: |
+        set -euo pipefail
+        case "$(uname -s)" in
+          Linux) os="linux" ;;
+          Darwin) os="darwin" ;;
+          *) echo "unsupported runner OS $(uname -s)" >&2; exit 1 ;;
+        esac
+        case "$(uname -m)" in
+          x86_64) arch="amd64" ;;
+          aarch64|arm64) arch="arm64" ;;
+          *) echo "unsupported runner architecture $(uname -m)" >&2; exit 1 ;;
+        esac
+        if ! printf '%s' "${CP_VERSION}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+          echo "version must be an exact release like 0.4.0" >&2
+          exit 1
+        fi
+        if ! printf '%s' "${CP_CHECKSUM}" | grep -Eq '^[0-9a-f]{64}$'; then
+          echo "checksum must be a lowercase hex SHA-256" >&2
+          exit 1
+        fi
+        archive="clusterproof_${CP_VERSION}_${os}_${arch}.tar.gz"
+        directory="$(mktemp -d)"
+        curl --fail --location --silent --show-error \
+          --output "${directory}/${archive}" \
+          "https://github.com/DPS0340/clusterproof/releases/download/v${CP_VERSION}/${archive}"
+        echo "${CP_CHECKSUM}  ${directory}/${archive}" | sha256sum --check --strict -
+        tar -xzf "${directory}/${archive}" -C "${directory}" kubectl-clusterproof
+        install -m 0755 "${directory}/kubectl-clusterproof" /usr/local/bin/clusterproof
+        rm -rf "${directory}"
+        clusterproof version
+
+    - name: Scan
+      shell: bash
+      env:
+        CP_PATH: ${{ inputs.path }}
+        CP_FAIL_ON: ${{ inputs.fail-on }}
+        CP_SARIF: ${{ inputs.sarif-output }}
+        CP_EVIDENCE: ${{ inputs.evidence-dir }}
+        CP_EXCEPTIONS: ${{ inputs.exceptions }}
+      run: |
+        set -euo pipefail
+        args=(scan "${CP_PATH}" --fail-on "${CP_FAIL_ON}")
+        if [ -n "${CP_EXCEPTIONS}" ]; then
+          args+=(--exceptions "${CP_EXCEPTIONS}")
+        fi
+        if [ -n "${CP_EVIDENCE}" ]; then
+          args+=(--evidence-dir "${CP_EVIDENCE}")
+        fi
+        if [ -n "${CP_SARIF}" ]; then
+          args+=(--format sarif --output "${CP_SARIF}")
+          clusterproof "${args[@]}"
+          echo "SARIF written to ${CP_SARIF}"
+        else
+          clusterproof "${args[@]}"
+        fi

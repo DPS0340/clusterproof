@@ -129,20 +129,20 @@ control-plane implementation must not begin before Task 41 is complete.
 
 ### Phase 6: v0.4 Trustworthy Daily Use
 
-- [ ] Task 20: Define the supported PSS version and workload OS contract.
-- [ ] Task 21: Complete PSS Baseline and Restricted conformance coverage.
-- [ ] Task 22: Add bounded stdin and rendered-manifest input.
-- [ ] Task 23: Add repository-owned local exception files.
-- [ ] Task 24: Publish report schemas and compatibility policy.
-- [ ] Task 25: Add rule explanation and assessment diagnostics.
-- [ ] Task 26: Ship a checksum-pinned GitHub Action and v0.4 release.
+- [x] Task 20: Define the supported PSS version and workload OS contract.
+- [x] Task 21: Complete PSS Baseline and Restricted conformance coverage.
+- [x] Task 22: Add bounded stdin and rendered-manifest input.
+- [x] Task 23: Add repository-owned local exception files.
+- [x] Task 24: Publish report schemas and compatibility policy.
+- [x] Task 25: Add rule explanation and assessment diagnostics.
+- [x] Task 26: Ship a checksum-pinned GitHub Action and v0.4 release.
 
 ### Checkpoint: Trustworthy CI adoption
 
-- [ ] Linux and Windows PSS semantics pass versioned conformance fixtures.
-- [ ] A rendered manifest can be piped without executing a renderer.
-- [ ] v0.3 report consumers remain compatible.
-- [ ] The public quickstart reaches a working CI gate in under 15 minutes.
+- [x] Linux and Windows PSS semantics pass versioned conformance fixtures.
+- [x] A rendered manifest can be piped without executing a renderer.
+- [x] v0.3 report consumers remain compatible.
+- [x] The public quickstart reaches a working CI gate in under 15 minutes.
 
 ### Phase 7: v0.5 Cluster Attack Surface
 

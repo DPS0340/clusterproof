@@ -109,6 +109,23 @@ clusterproof scan \
   ./deploy
 ```
 
+In GitHub Actions, use the first-party action, which downloads a released
+binary and verifies its SHA-256 before executing anything:
+
+```yaml
+- uses: DPS0340/clusterproof@v0.4.0
+  with:
+    version: "0.4.0"
+    checksum: "<sha256 from the release checksums.txt>"
+    path: ./deploy
+    fail-on: high
+    sarif-output: clusterproof.sarif
+```
+
+A complete workflow, including SARIF upload to code scanning, is in
+[examples/github-actions-ci.yml](examples/github-actions-ci.yml). The action
+needs no cluster credentials and grants no write access.
+
 Exit codes are `0` for a successful policy pass, `2` when findings meet the
 requested threshold, and `1` for operational errors.
 

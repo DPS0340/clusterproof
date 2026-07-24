@@ -164,13 +164,13 @@
 Pod Security Standard semantics the built-in catalog evaluates.
 
 **Acceptance criteria:**
-- [ ] Catalog metadata identifies the Kubernetes minor and applicable workload OS.
-- [ ] Linux-only checks do not apply when `spec.os.name` is `windows`.
-- [ ] An unsupported or ambiguous version is reported explicitly, never treated as `latest`.
+- [x] Catalog metadata identifies the Kubernetes minor and applicable workload OS.
+- [x] Linux-only checks do not apply when `spec.os.name` is `windows`.
+- [x] An unsupported or ambiguous version is reported explicitly, never treated as `latest`.
 
 **Verification:**
-- [ ] Table-driven tests cover supported version/OS combinations and unsupported input.
-- [ ] `clusterproof ruleset show --format json` exposes the version contract.
+- [x] Table-driven tests cover supported version/OS combinations and unsupported input.
+- [x] `clusterproof ruleset show --format json` exposes the version contract.
 
 **Dependencies:** Task 15
 **Files likely touched:** `internal/manifest/*`, `internal/rules/*`, `docs/rulesets.md`
@@ -183,13 +183,13 @@ a machine-readable coverage matrix that distinguishes aligned, partial, and
 supplemental behavior.
 
 **Acceptance criteria:**
-- [ ] Every applicable PSS v1.36 field has a conformance fixture and catalog entry.
-- [ ] Host ports, volume types, proc settings, sysctls, AppArmor/SELinux, and OS-specific behavior are covered.
-- [ ] The matrix never claims complete coverage while an applicable field is missing.
+- [x] Every applicable PSS v1.36 field has a conformance fixture and catalog entry.
+- [x] Host ports, volume types, proc settings, sysctls, AppArmor/SELinux, and OS-specific behavior are covered.
+- [x] The matrix never claims complete coverage while an applicable field is missing.
 
 **Verification:**
-- [ ] Upstream-aligned allow/deny fixtures pass for Baseline and Restricted.
-- [ ] Catalog drift tests prove every emitted native rule is registered once.
+- [x] Upstream-aligned allow/deny fixtures pass for Baseline and Restricted.
+- [x] Catalog drift tests prove every emitted native rule is registered once.
 
 **Dependencies:** Task 20
 **Files likely touched:** `internal/manifest/*`, `internal/rules/*`, `testdata/*`, `docs/*`
@@ -201,13 +201,13 @@ supplemental behavior.
 or Kustomize without ClusterProof invoking a renderer.
 
 **Acceptance criteria:**
-- [ ] `clusterproof scan -` accepts bounded multi-document JSON/YAML.
-- [ ] Stdin cannot be combined with a repository path or live cluster target.
-- [ ] Stream byte, document, object, and nesting limits fail closed.
+- [x] `clusterproof scan -` accepts bounded multi-document JSON/YAML.
+- [x] Stdin cannot be combined with a repository path or live cluster target.
+- [x] Stream byte, document, object, and nesting limits fail closed.
 
 **Verification:**
-- [ ] CLI tests cover valid streams, empty input, malformed input, and every limit.
-- [ ] A manual Helm/Kustomize pipe smoke test produces the same findings as a saved render.
+- [x] CLI tests cover valid streams, empty input, malformed input, and every limit.
+- [x] A manual Helm/Kustomize pipe smoke test produces the same findings as a saved render.
 
 **Dependencies:** Task 21
 **Files likely touched:** `internal/manifest/*`, `cmd/clusterproof/*`, `README.md`
@@ -219,13 +219,13 @@ or Kustomize without ClusterProof invoking a renderer.
 central approval and retained waiver history for paid editions.
 
 **Acceptance criteria:**
-- [ ] Each exception requires rule, target, owner, reason, and expiry.
-- [ ] Expired or malformed exceptions do not suppress findings.
-- [ ] Reports and evidence record suppressed finding identity without source secret values.
+- [x] Each exception requires rule, target, owner, reason, and expiry.
+- [x] Expired or malformed exceptions do not suppress findings.
+- [x] Reports and evidence record suppressed finding identity without source secret values.
 
 **Verification:**
-- [ ] Tests cover exact matching, non-matching, expiry, duplicates, malformed files, and limits.
-- [ ] JSON/SARIF/evidence remain deterministic with and without exceptions.
+- [x] Tests cover exact matching, non-matching, expiry, duplicates, malformed files, and limits.
+- [x] JSON/SARIF/evidence remain deterministic with and without exceptions.
 
 **Dependencies:** Tasks 21-22
 **Files likely touched:** `internal/exception/*`, `internal/model/*`, `cmd/clusterproof/*`, `docs/*`
@@ -237,13 +237,13 @@ central approval and retained waiver history for paid editions.
 the report, ruleset, evidence, and exception contracts.
 
 **Acceptance criteria:**
-- [ ] Schemas are versioned independently and reject structurally invalid examples.
-- [ ] Additive minor-version fields remain decodable by the previous supported consumer.
-- [ ] Breaking changes require a new schema major and migration note.
+- [x] Schemas are versioned independently and reject structurally invalid examples.
+- [x] Additive minor-version fields remain decodable by the previous supported consumer.
+- [x] Breaking changes require a new schema major and migration note.
 
 **Verification:**
-- [ ] CI validates every fixture against its schema.
-- [ ] Backward-compatibility tests decode v0.3 fixtures with current code.
+- [x] CI validates every fixture against its schema.
+- [x] Backward-compatibility tests decode v0.3 fixtures with current code.
 
 **Dependencies:** Task 23
 **Files likely touched:** `schemas/*`, `internal/model/*`, `.github/workflows/*`, `docs/*`
@@ -255,13 +255,13 @@ the report, ruleset, evidence, and exception contracts.
 unsupported, and partially assessed scans.
 
 **Acceptance criteria:**
-- [ ] `clusterproof explain RULE_ID` shows source, scope, evidence, and remediation.
-- [ ] Empty and unsupported input cannot produce a misleading clean assessment.
-- [ ] Partial assessment lists the exact unassessed resource or rule scope.
+- [x] `clusterproof explain RULE_ID` shows source, scope, evidence, and remediation.
+- [x] Empty and unsupported input cannot produce a misleading clean assessment.
+- [x] Partial assessment lists the exact unassessed resource or rule scope.
 
 **Verification:**
-- [ ] CLI tests cover known/unknown rules and all assessment states.
-- [ ] Table, JSON, SARIF, and evidence render the same assessment semantics.
+- [x] CLI tests cover known/unknown rules and all assessment states.
+- [x] Table, JSON, SARIF, and evidence render the same assessment semantics.
 
 **Dependencies:** Tasks 21 and 24
 **Files likely touched:** `cmd/clusterproof/*`, `internal/model/*`, `internal/report/*`, `docs/*`
@@ -273,9 +273,9 @@ unsupported, and partially assessed scans.
 release the trustworthy daily-use milestone.
 
 **Acceptance criteria:**
-- [ ] The workflow pins a released binary and verifies SHA-256 before execution.
-- [ ] Users can upload SARIF and evidence without granting write access to a cluster.
-- [ ] v0.4 release notes document compatibility and rollback.
+- [x] The workflow pins a released binary and verifies SHA-256 before execution.
+- [x] Users can upload SARIF and evidence without granting write access to a cluster.
+- [x] v0.4 release notes document compatibility and rollback.
 
 **Verification:**
 - [ ] A public example repository passes and fails on the expected fixtures.
