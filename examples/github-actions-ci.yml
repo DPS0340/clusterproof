@@ -31,7 +31,7 @@ jobs:
         with:
           version: "0.4.0"
           # SHA-256 of clusterproof_0.4.0_linux_amd64.tar.gz from checksums.txt:
-          checksum: "REPLACE_WITH_RELEASE_CHECKSUM"
+          checksum: "ea371fc558f2ba1047dd53af6e360c82079c11d2794877ae1ba0b0b804c20c6f"
           path: ./deploy
           fail-on: high
           sarif-output: clusterproof.sarif

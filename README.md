@@ -116,7 +116,7 @@ binary and verifies its SHA-256 before executing anything:
 - uses: DPS0340/clusterproof@v0.4.0
   with:
     version: "0.4.0"
-    checksum: "<sha256 from the release checksums.txt>"
+    checksum: "ea371fc558f2ba1047dd53af6e360c82079c11d2794877ae1ba0b0b804c20c6f" # linux_amd64; see release checksums.txt
     path: ./deploy
     fail-on: high
     sarif-output: clusterproof.sarif
