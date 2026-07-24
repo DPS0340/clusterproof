@@ -14,6 +14,44 @@ func TestEvaluateSecureWorkloadHasNoFindings(t *testing.T) {
 	}
 }
 
+func TestEvaluateAllowsRestrictedVolumeTypes(t *testing.T) {
+	workload := secureWorkload()
+	workload.PodSpec.Volumes = []manifest.Volume{
+		{Name: "config", Types: []string{"configMap"}},
+		{Name: "cache", Types: []string{"emptyDir"}},
+		{Name: "data", Types: []string{"persistentVolumeClaim"}},
+		{Name: "token", Types: []string{"projected"}},
+		{Name: "cert", Types: []string{"secret"}},
+		{Name: "meta", Types: []string{"downwardAPI"}},
+		{Name: "driver", Types: []string{"csi"}},
+		{Name: "scratch", Types: []string{"ephemeral"}},
+	}
+	if findings := Evaluate(workload); len(findings) != 0 {
+		t.Fatalf("restricted volume types produced findings: %#v", findings)
+	}
+}
+
+func TestEvaluateAllowsSafeSysctls(t *testing.T) {
+	workload := secureWorkload()
+	workload.PodSpec.SecurityContext.Sysctls = []manifest.Sysctl{
+		{Name: "net.ipv4.tcp_syncookies", Value: "1"},
+		{Name: "net.ipv4.ip_unprivileged_port_start", Value: "1024"},
+	}
+	if findings := Evaluate(workload); len(findings) != 0 {
+		t.Fatalf("safe sysctls produced findings: %#v", findings)
+	}
+}
+
+func TestEvaluateAllowsConfinedProfiles(t *testing.T) {
+	workload := secureWorkload()
+	workload.PodSpec.Containers[0].SecurityContext.AppArmorProfile = &manifest.AppArmor{Type: "RuntimeDefault"}
+	workload.PodSpec.Containers[0].SecurityContext.SELinuxOptions = &manifest.SELinux{Type: "container_t"}
+	workload.PodSpec.Containers[0].SecurityContext.ProcMount = stringPointer("Default")
+	if findings := Evaluate(workload); len(findings) != 0 {
+		t.Fatalf("confined profiles produced findings: %#v", findings)
+	}
+}
+
 func TestEvaluateNativeRules(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -132,6 +170,79 @@ func TestEvaluateNativeRules(t *testing.T) {
 			},
 			wantID:   "CP-SUPPLY-002",
 			severity: model.SeverityMedium,
+		},
+		{
+			name: "host port binding",
+			mutate: func(workload *manifest.Workload) {
+				workload.PodSpec.Containers[0].Ports = []manifest.ContainerPort{
+					{ContainerPort: 8080, HostPort: 8080},
+				}
+			},
+			wantID:   "CP-K8S-011",
+			severity: model.SeverityMedium,
+		},
+		{
+			name: "volume type outside restricted allowlist",
+			mutate: func(workload *manifest.Workload) {
+				workload.PodSpec.Volumes = []manifest.Volume{
+					{Name: "legacy", Types: []string{"nfs"}},
+				}
+			},
+			wantID:   "CP-K8S-012",
+			severity: model.SeverityMedium,
+		},
+		{
+			name: "non-default proc mount",
+			mutate: func(workload *manifest.Workload) {
+				workload.PodSpec.Containers[0].SecurityContext.ProcMount = stringPointer("Unmasked")
+			},
+			wantID:   "CP-K8S-013",
+			severity: model.SeverityHigh,
+		},
+		{
+			name: "unsafe sysctl",
+			mutate: func(workload *manifest.Workload) {
+				workload.PodSpec.SecurityContext.Sysctls = []manifest.Sysctl{
+					{Name: "kernel.msgmax", Value: "65536"},
+				}
+			},
+			wantID:   "CP-K8S-014",
+			severity: model.SeverityHigh,
+		},
+		{
+			name: "apparmor unconfined",
+			mutate: func(workload *manifest.Workload) {
+				workload.PodSpec.Containers[0].SecurityContext.AppArmorProfile = &manifest.AppArmor{Type: "Unconfined"}
+			},
+			wantID:   "CP-K8S-015",
+			severity: model.SeverityHigh,
+		},
+		{
+			name: "selinux custom type",
+			mutate: func(workload *manifest.Workload) {
+				workload.PodSpec.SecurityContext.SELinuxOptions = &manifest.SELinux{Type: "spc_t"}
+			},
+			wantID:   "CP-K8S-016",
+			severity: model.SeverityHigh,
+		},
+		{
+			name: "selinux user set",
+			mutate: func(workload *manifest.Workload) {
+				workload.PodSpec.Containers[0].SecurityContext.SELinuxOptions = &manifest.SELinux{User: "system_u"}
+			},
+			wantID:   "CP-K8S-016",
+			severity: model.SeverityHigh,
+		},
+		{
+			name: "windows hostprocess",
+			mutate: func(workload *manifest.Workload) {
+				workload.PodSpec.OS = manifest.PodOS{Name: "windows"}
+				workload.PodSpec.SecurityContext.WindowsOptions = &manifest.WindowsOpts{
+					HostProcess: boolPointer(true),
+				}
+			},
+			wantID:   "CP-K8S-017",
+			severity: model.SeverityCritical,
 		},
 	}
 
@@ -282,5 +393,9 @@ func boolPointer(value bool) *bool {
 }
 
 func int64Pointer(value int64) *int64 {
+	return &value
+}
+
+func stringPointer(value string) *string {
 	return &value
 }

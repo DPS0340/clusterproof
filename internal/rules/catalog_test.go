@@ -11,20 +11,34 @@ import (
 
 func TestDefaultCatalogCoversEveryNativeFinding(t *testing.T) {
 	privileged := true
+	hostProcess := true
+	procMount := "Unmasked"
 	workload := manifest.Workload{
 		Kind: "Pod",
 		Name: "all-rules",
 		PodSpec: manifest.PodSpec{
 			HostNetwork: true,
-			Volumes: []manifest.Volume{{
-				Name:     "host",
-				HostPath: &manifest.HostPath{Path: "/"},
-			}},
+			Volumes: []manifest.Volume{
+				{
+					Name:     "host",
+					HostPath: &manifest.HostPath{Path: "/"},
+					Types:    []string{"hostPath"},
+				},
+				{Name: "legacy", Types: []string{"nfs"}},
+			},
+			SecurityContext: manifest.SecurityContext{
+				Sysctls:         []manifest.Sysctl{{Name: "kernel.msgmax", Value: "65536"}},
+				AppArmorProfile: &manifest.AppArmor{Type: "Unconfined"},
+				SELinuxOptions:  &manifest.SELinux{Type: "spc_t"},
+				WindowsOptions:  &manifest.WindowsOpts{HostProcess: &hostProcess},
+			},
 			Containers: []manifest.Container{{
 				Name:  "app",
 				Image: "example/app:latest",
+				Ports: []manifest.ContainerPort{{ContainerPort: 8080, HostPort: 8080}},
 				SecurityContext: manifest.SecurityContext{
 					Privileged: &privileged,
+					ProcMount:  &procMount,
 					SeccompProfile: manifest.Seccomp{
 						Type: "Unconfined",
 					},
@@ -107,6 +121,58 @@ func TestDefaultCatalogDeclaresKubernetesVersionContract(t *testing.T) {
 	}
 }
 
+func TestCoverageMatrixIsConsistent(t *testing.T) {
+	catalog := DefaultCatalog()
+	if len(catalog.Coverage) == 0 {
+		t.Fatal("catalog has no PSS coverage matrix")
+	}
+
+	registered := make(map[string]RuleDefinition)
+	for _, rule := range catalog.Rules {
+		registered[rule.ID] = rule
+	}
+
+	covered := make(map[string]struct{})
+	seen := make(map[string]struct{})
+	for _, coverage := range catalog.Coverage {
+		key := coverage.Profile + "/" + coverage.Control
+		if _, exists := seen[key]; exists {
+			t.Fatalf("duplicate coverage entry %q", key)
+		}
+		seen[key] = struct{}{}
+		if coverage.Profile != "baseline" && coverage.Profile != "restricted" {
+			t.Fatalf("invalid coverage profile %q", coverage.Profile)
+		}
+		if coverage.Status != CoverageComplete && coverage.Status != CoveragePartial {
+			t.Fatalf("invalid coverage status for %q: %q", key, coverage.Status)
+		}
+		if coverage.Status == CoveragePartial && coverage.Note == "" {
+			t.Fatalf("partial coverage %q must explain its gap in a note", key)
+		}
+		if len(coverage.RuleIDs) == 0 {
+			t.Fatalf("coverage entry %q lists no rules", key)
+		}
+		for _, ruleID := range coverage.RuleIDs {
+			if _, exists := registered[ruleID]; !exists {
+				t.Fatalf("coverage entry %q references unregistered rule %q", key, ruleID)
+			}
+			covered[ruleID] = struct{}{}
+		}
+	}
+
+	// Every rule aligned with the PSS source must appear in the matrix.
+	for _, rule := range catalog.Rules {
+		for _, source := range rule.Sources {
+			if source.Name != pssSource.Name || source.Relationship != RelationshipAligned {
+				continue
+			}
+			if _, exists := covered[rule.ID]; !exists {
+				t.Fatalf("PSS-aligned rule %s is missing from the coverage matrix", rule.ID)
+			}
+		}
+	}
+}
+
 func TestVersionContractValidateVersion(t *testing.T) {
 	contract := DefaultCatalog().Kubernetes
 	tests := []struct {
@@ -162,15 +228,27 @@ func TestCatalogOSMetadataMatchesRuleGating(t *testing.T) {
 		PodSpec: manifest.PodSpec{
 			OS:          manifest.PodOS{Name: "windows"},
 			HostNetwork: true,
-			Volumes: []manifest.Volume{{
-				Name:     "host",
-				HostPath: &manifest.HostPath{Path: "/"},
-			}},
+			Volumes: []manifest.Volume{
+				{
+					Name:     "host",
+					HostPath: &manifest.HostPath{Path: "/"},
+					Types:    []string{"hostPath"},
+				},
+				{Name: "legacy", Types: []string{"nfs"}},
+			},
+			SecurityContext: manifest.SecurityContext{
+				Sysctls:         []manifest.Sysctl{{Name: "kernel.msgmax", Value: "65536"}},
+				AppArmorProfile: &manifest.AppArmor{Type: "Unconfined"},
+				SELinuxOptions:  &manifest.SELinux{Type: "spc_t"},
+				WindowsOptions:  &manifest.WindowsOpts{HostProcess: boolPointer(true)},
+			},
 			Containers: []manifest.Container{{
 				Name:  "app",
 				Image: "example/app:latest",
+				Ports: []manifest.ContainerPort{{ContainerPort: 8080, HostPort: 8080}},
 				SecurityContext: manifest.SecurityContext{
 					Privileged:     &privileged,
+					ProcMount:      stringPointer("Unmasked"),
 					SeccompProfile: manifest.Seccomp{Type: "Unconfined"},
 					Capabilities:   manifest.Capabilities{Add: []string{"SYS_ADMIN"}},
 				},

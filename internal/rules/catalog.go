@@ -91,13 +91,35 @@ type RuleDefinition struct {
 	Sources     []SourceReference `json:"sources"`
 }
 
+// CoverageStatus describes how completely a PSS control is evaluated.
+type CoverageStatus string
+
+const (
+	// CoverageComplete means every documented field of the control is checked.
+	CoverageComplete CoverageStatus = "complete"
+	// CoveragePartial means at least one documented field is not checked.
+	// A partial entry must explain the gap in its note.
+	CoveragePartial CoverageStatus = "partial"
+)
+
+// ControlCoverage maps one upstream PSS control to the native rules
+// evaluating it and honestly records any remaining gap.
+type ControlCoverage struct {
+	Profile string         `json:"profile"`
+	Control string         `json:"control"`
+	Status  CoverageStatus `json:"status"`
+	RuleIDs []string       `json:"rule_ids"`
+	Note    string         `json:"note,omitempty"`
+}
+
 // Catalog is the versioned native ruleset contract recorded in scan evidence.
 type Catalog struct {
-	SchemaVersion string           `json:"schema_version"`
-	ID            string           `json:"id"`
-	Version       string           `json:"version"`
-	Kubernetes    VersionContract  `json:"kubernetes"`
-	Rules         []RuleDefinition `json:"rules"`
+	SchemaVersion string            `json:"schema_version"`
+	ID            string            `json:"id"`
+	Version       string            `json:"version"`
+	Kubernetes    VersionContract   `json:"kubernetes"`
+	Coverage      []ControlCoverage `json:"pss_coverage"`
+	Rules         []RuleDefinition  `json:"rules"`
 }
 
 var pssSource = SourceReference{
@@ -138,6 +160,33 @@ var defaultCatalog = Catalog{
 	Kubernetes: VersionContract{
 		KubernetesMinor: "1.36",
 		SupportedMinors: []string{"1.34", "1.35", "1.36"},
+	},
+	Coverage: []ControlCoverage{
+		{Profile: "baseline", Control: "HostProcess", Status: CoverageComplete, RuleIDs: []string{"CP-K8S-017"}},
+		{Profile: "baseline", Control: "Host Namespaces", Status: CoverageComplete, RuleIDs: []string{"CP-K8S-002"}},
+		{Profile: "baseline", Control: "Privileged Containers", Status: CoverageComplete, RuleIDs: []string{"CP-K8S-001"}},
+		{
+			Profile: "baseline", Control: "Capabilities", Status: CoverageComplete,
+			RuleIDs: []string{"CP-K8S-007"},
+			Note:    "Evaluated with the stricter Restricted add-list; every Baseline violation is also reported.",
+		},
+		{Profile: "baseline", Control: "HostPath Volumes", Status: CoverageComplete, RuleIDs: []string{"CP-K8S-003"}},
+		{Profile: "baseline", Control: "Host Ports", Status: CoverageComplete, RuleIDs: []string{"CP-K8S-011"}},
+		{
+			Profile: "baseline", Control: "AppArmor", Status: CoveragePartial,
+			RuleIDs: []string{"CP-K8S-015"},
+			Note:    "securityContext.appArmorProfile is evaluated; deprecated container.apparmor.security.beta.kubernetes.io annotations are not parsed.",
+		},
+		{Profile: "baseline", Control: "SELinux", Status: CoverageComplete, RuleIDs: []string{"CP-K8S-016"}},
+		{Profile: "baseline", Control: "/proc Mount Type", Status: CoverageComplete, RuleIDs: []string{"CP-K8S-013"}},
+		{Profile: "baseline", Control: "Seccomp", Status: CoverageComplete, RuleIDs: []string{"CP-K8S-006"}},
+		{Profile: "baseline", Control: "Sysctls", Status: CoverageComplete, RuleIDs: []string{"CP-K8S-014"}},
+		{Profile: "restricted", Control: "Volume Types", Status: CoverageComplete, RuleIDs: []string{"CP-K8S-003", "CP-K8S-012"}},
+		{Profile: "restricted", Control: "Privilege Escalation", Status: CoverageComplete, RuleIDs: []string{"CP-K8S-004"}},
+		{Profile: "restricted", Control: "Running as Non-root", Status: CoverageComplete, RuleIDs: []string{"CP-K8S-005"}},
+		{Profile: "restricted", Control: "Running as Non-root user", Status: CoverageComplete, RuleIDs: []string{"CP-K8S-005"}},
+		{Profile: "restricted", Control: "Seccomp", Status: CoverageComplete, RuleIDs: []string{"CP-K8S-006"}},
+		{Profile: "restricted", Control: "Capabilities", Status: CoverageComplete, RuleIDs: []string{"CP-K8S-007", "CP-K8S-008"}},
 	},
 	Rules: []RuleDefinition{
 		{
@@ -201,6 +250,48 @@ var defaultCatalog = Catalog{
 			Sources:     []SourceReference{securityChecklistSource},
 		},
 		{
+			ID: "CP-K8S-011", Title: "Host port binding requested", Category: "kubernetes-posture",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
+			Sources:     []SourceReference{pssSource},
+		},
+		{
+			ID: "CP-K8S-012", Title: "Volume type outside the restricted allowlist", Category: "kubernetes-posture",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Restricted"},
+			Sources:     []SourceReference{pssSource},
+		},
+		{
+			ID: "CP-K8S-013", Title: "Non-default proc mount requested", Category: "kubernetes-posture",
+			OS:          linuxOnly,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
+			Sources:     []SourceReference{pssSource},
+		},
+		{
+			ID: "CP-K8S-014", Title: "Sysctl outside the safe allowlist requested", Category: "kubernetes-posture",
+			OS:          linuxOnly,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
+			Sources:     []SourceReference{pssSource},
+		},
+		{
+			ID: "CP-K8S-015", Title: "AppArmor profile is overridden to an unconfined state", Category: "kubernetes-posture",
+			OS:          linuxOnly,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
+			Sources:     []SourceReference{pssSource},
+		},
+		{
+			ID: "CP-K8S-016", Title: "Disallowed SELinux options requested", Category: "kubernetes-posture",
+			OS:          linuxOnly,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
+			Sources:     []SourceReference{pssSource},
+		},
+		{
+			ID: "CP-K8S-017", Title: "Windows HostProcess pod requested", Category: "kubernetes-posture",
+			OS:          []WorkloadOS{OSWindows},
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
+			Sources:     []SourceReference{pssSource},
+		},
+		{
 			ID: "CP-SUPPLY-001", Title: "Container image uses a mutable latest tag", Category: "supply-chain",
 			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC7", "SLSA:Provenance"},
@@ -219,6 +310,11 @@ var defaultCatalog = Catalog{
 func DefaultCatalog() Catalog {
 	result := defaultCatalog
 	result.Kubernetes.SupportedMinors = append([]string(nil), defaultCatalog.Kubernetes.SupportedMinors...)
+	result.Coverage = make([]ControlCoverage, len(defaultCatalog.Coverage))
+	for index, coverage := range defaultCatalog.Coverage {
+		result.Coverage[index] = coverage
+		result.Coverage[index].RuleIDs = append([]string(nil), coverage.RuleIDs...)
+	}
 	result.Rules = make([]RuleDefinition, len(defaultCatalog.Rules))
 	for index, rule := range defaultCatalog.Rules {
 		result.Rules[index] = rule

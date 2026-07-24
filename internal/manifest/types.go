@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/DPS0340/clusterproof/internal/model"
+	"gopkg.in/yaml.v3"
 )
 
 // Workload is the normalized security-relevant portion of a Kubernetes workload.
@@ -70,13 +71,41 @@ type SecurityContext struct {
 	RunAsNonRoot             *bool        `yaml:"runAsNonRoot"`
 	RunAsUser                *int64       `yaml:"runAsUser"`
 	ReadOnlyRootFilesystem   *bool        `yaml:"readOnlyRootFilesystem"`
+	ProcMount                *string      `yaml:"procMount"`
 	SeccompProfile           Seccomp      `yaml:"seccompProfile"`
+	AppArmorProfile          *AppArmor    `yaml:"appArmorProfile"`
+	SELinuxOptions           *SELinux     `yaml:"seLinuxOptions"`
+	WindowsOptions           *WindowsOpts `yaml:"windowsOptions"`
+	Sysctls                  []Sysctl     `yaml:"sysctls"`
 	Capabilities             Capabilities `yaml:"capabilities"`
 }
 
 // Seccomp describes a Kubernetes seccomp profile.
 type Seccomp struct {
 	Type string `yaml:"type"`
+}
+
+// AppArmor describes a Kubernetes AppArmor profile source.
+type AppArmor struct {
+	Type string `yaml:"type"`
+}
+
+// SELinux records requested SELinux user, role, and type labels.
+type SELinux struct {
+	User string `yaml:"user"`
+	Role string `yaml:"role"`
+	Type string `yaml:"type"`
+}
+
+// WindowsOpts records Windows-specific security options.
+type WindowsOpts struct {
+	HostProcess *bool `yaml:"hostProcess"`
+}
+
+// Sysctl is one requested kernel parameter without its value semantics.
+type Sysctl struct {
+	Name  string `yaml:"name"`
+	Value string `yaml:"value"`
 }
 
 // Capabilities describes added and dropped Linux capabilities.
@@ -89,13 +118,68 @@ type Capabilities struct {
 type Container struct {
 	Name            string          `yaml:"name"`
 	Image           string          `yaml:"image"`
+	Ports           []ContainerPort `yaml:"ports"`
 	SecurityContext SecurityContext `yaml:"securityContext"`
 }
 
-// Volume records hostPath usage without reading mounted content.
+// ContainerPort records host port bindings without payload data.
+type ContainerPort struct {
+	ContainerPort int `yaml:"containerPort"`
+	HostPort      int `yaml:"hostPort"`
+}
+
+// Volume records the requested volume type keys without reading content.
 type Volume struct {
-	Name     string    `yaml:"name"`
-	HostPath *HostPath `yaml:"hostPath"`
+	Name     string
+	HostPath *HostPath
+	// Types lists the volume source keys declared on the volume, such as
+	// "hostPath" or "configMap", in document order.
+	Types []string
+}
+
+// UnmarshalYAML captures the volume name, any hostPath source, and every
+// declared volume source key without decoding source payloads.
+func (v *Volume) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind != yaml.MappingNode {
+		return fmt.Errorf("volume must be a mapping, got %s", nodeKindName(node.Kind))
+	}
+	for index := 0; index+1 < len(node.Content); index += 2 {
+		key := node.Content[index]
+		value := node.Content[index+1]
+		switch key.Value {
+		case "name":
+			if err := value.Decode(&v.Name); err != nil {
+				return fmt.Errorf("decode volume name: %w", err)
+			}
+		case "hostPath":
+			hostPath := &HostPath{}
+			if err := value.Decode(hostPath); err != nil {
+				return fmt.Errorf("decode hostPath volume source: %w", err)
+			}
+			v.HostPath = hostPath
+			v.Types = append(v.Types, key.Value)
+		default:
+			v.Types = append(v.Types, key.Value)
+		}
+	}
+	return nil
+}
+
+func nodeKindName(kind yaml.Kind) string {
+	switch kind {
+	case yaml.DocumentNode:
+		return "document"
+	case yaml.SequenceNode:
+		return "sequence"
+	case yaml.MappingNode:
+		return "mapping"
+	case yaml.ScalarNode:
+		return "scalar"
+	case yaml.AliasNode:
+		return "alias"
+	default:
+		return "unknown"
+	}
 }
 
 // HostPath is the host path requested by a workload.

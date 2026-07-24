@@ -85,6 +85,58 @@ spec:
 	}
 }
 
+func TestLoadNormalizesVolumeTypesAndPorts(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "pod.yaml")
+	data := []byte(`
+apiVersion: v1
+kind: Pod
+metadata: {name: volumes}
+spec:
+  volumes:
+    - name: host
+      hostPath: {path: /var/run}
+    - name: legacy
+      nfs: {server: files.example.com, path: /exports}
+    - name: config
+      configMap: {name: app-config}
+  containers:
+    - name: app
+      image: example.com/app:v1
+      ports:
+        - containerPort: 8080
+          hostPort: 8080
+`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	result, err := Load(root, DefaultLimits())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(result.Workloads) != 1 {
+		t.Fatalf("got %d workloads, want 1", len(result.Workloads))
+	}
+	volumes := result.Workloads[0].PodSpec.Volumes
+	if len(volumes) != 3 {
+		t.Fatalf("got %d volumes, want 3: %#v", len(volumes), volumes)
+	}
+	if volumes[0].HostPath == nil || volumes[0].HostPath.Path != "/var/run" {
+		t.Fatalf("hostPath volume was not normalized: %#v", volumes[0])
+	}
+	if len(volumes[1].Types) != 1 || volumes[1].Types[0] != "nfs" {
+		t.Fatalf("nfs volume type was not recorded: %#v", volumes[1])
+	}
+	if len(volumes[2].Types) != 1 || volumes[2].Types[0] != "configMap" {
+		t.Fatalf("configMap volume type was not recorded: %#v", volumes[2])
+	}
+	ports := result.Workloads[0].PodSpec.Containers[0].Ports
+	if len(ports) != 1 || ports[0].HostPort != 8080 {
+		t.Fatalf("hostPort was not normalized: %#v", ports)
+	}
+}
+
 func TestLoadSupportsCronJob(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "cronjob.yml")

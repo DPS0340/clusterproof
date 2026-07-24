@@ -2,6 +2,7 @@
 package rules
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -38,6 +39,7 @@ func Evaluate(workload manifest.Workload) []model.Finding {
 func evaluatePod(workload manifest.Workload) []model.Finding {
 	var findings []model.Finding
 	spec := workload.PodSpec
+	windows := spec.OS.IsWindows()
 
 	var namespaces []string
 	if spec.HostNetwork {
@@ -78,6 +80,71 @@ func evaluatePod(workload manifest.Workload) []model.Finding {
 		))
 	}
 
+	if unexpected := restrictedVolumeViolations(spec.Volumes); len(unexpected) > 0 {
+		findings = append(findings, finding(
+			workload,
+			"CP-K8S-012",
+			model.SeverityMedium,
+			"Volume type outside the restricted allowlist",
+			"The Restricted profile allows only a fixed set of volume types; other drivers can reach node or network resources.",
+			"Use configMap, csi, downwardAPI, emptyDir, ephemeral, persistentVolumeClaim, projected, or secret volumes.",
+			model.Evidence{Observed: strings.Join(unexpected, ", "), Expected: "restricted volume types only"},
+			"SOC2:CC6", "Kubernetes:PSS-Restricted",
+		))
+	}
+
+	if unsafe := unsafeSysctls(spec.SecurityContext.Sysctls); !windows && len(unsafe) > 0 {
+		findings = append(findings, finding(
+			workload,
+			"CP-K8S-014",
+			model.SeverityHigh,
+			"Sysctl outside the safe allowlist requested",
+			"Sysctls can disable security mechanisms or affect every workload on the node.",
+			"Remove the sysctl or keep only entries from the Kubernetes safe sysctl allowlist.",
+			model.Evidence{Observed: strings.Join(unsafe, ", "), Expected: "safe sysctl allowlist only"},
+			"SOC2:CC6", "Kubernetes:PSS-Baseline",
+		))
+	}
+
+	if observed, unsafe := appArmorRisk(spec.SecurityContext.AppArmorProfile); !windows && unsafe {
+		findings = append(findings, finding(
+			workload,
+			"CP-K8S-015",
+			model.SeverityHigh,
+			"AppArmor profile is overridden to an unconfined state",
+			"Disabling AppArmor removes a mandatory access-control layer expected by the Baseline profile.",
+			"Set appArmorProfile.type to RuntimeDefault or a reviewed Localhost profile, or remove the override.",
+			model.Evidence{Observed: observed, Expected: "RuntimeDefault or Localhost"},
+			"SOC2:CC6", "Kubernetes:PSS-Baseline",
+		))
+	}
+
+	if observed, unsafe := seLinuxRisk(spec.SecurityContext.SELinuxOptions); !windows && unsafe {
+		findings = append(findings, finding(
+			workload,
+			"CP-K8S-016",
+			model.SeverityHigh,
+			"Disallowed SELinux options requested",
+			"Custom SELinux users, roles, or types can escape the container security domain.",
+			"Remove seLinuxOptions.user and role, and keep type unset or one of the allowed container types.",
+			model.Evidence{Observed: observed, Expected: "allowed SELinux container types only"},
+			"SOC2:CC6", "Kubernetes:PSS-Baseline",
+		))
+	}
+
+	if hostProcessEnabled(spec.SecurityContext.WindowsOptions) {
+		findings = append(findings, finding(
+			workload,
+			"CP-K8S-017",
+			model.SeverityCritical,
+			"Windows HostProcess pod requested",
+			"HostProcess containers run directly on the Windows host and are equivalent to privileged access.",
+			"Set windowsOptions.hostProcess to false unless the workload has a reviewed infrastructure exception.",
+			model.Evidence{Observed: "hostProcess: true", Expected: "hostProcess: false"},
+			"SOC2:CC6", "Kubernetes:PSS-Baseline",
+		))
+	}
+
 	if spec.AutomountServiceAccountToken == nil || *spec.AutomountServiceAccountToken {
 		findings = append(findings, finding(
 			workload,
@@ -106,6 +173,66 @@ func evaluateContainer(workload manifest.Workload, container manifest.Container)
 			"Privileged containers bypass major isolation controls and can commonly reach the node.",
 			"Set securityContext.privileged: false and grant only the specific capability required.",
 			model.Evidence{Observed: "privileged: true", Expected: "privileged: false"},
+			"SOC2:CC6", "Kubernetes:PSS-Baseline",
+		))
+	}
+
+	if ports := hostPorts(container.Ports); len(ports) > 0 {
+		findings = append(findings, containerFinding(
+			workload, container,
+			"CP-K8S-011", model.SeverityMedium,
+			"Host port binding requested",
+			"Host ports bind the workload to node network interfaces and bypass Service-level controls.",
+			"Remove hostPort and expose the workload through a Service or ingress controller.",
+			model.Evidence{Observed: "hostPort " + strings.Join(ports, ", "), Expected: "no hostPort bindings"},
+			"SOC2:CC6", "Kubernetes:PSS-Baseline",
+		))
+	}
+
+	if !windows && context.ProcMount != nil && !strings.EqualFold(*context.ProcMount, "Default") {
+		findings = append(findings, containerFinding(
+			workload, container,
+			"CP-K8S-013", model.SeverityHigh,
+			"Non-default proc mount requested",
+			"An unmasked /proc filesystem exposes sensitive kernel interfaces to the container.",
+			"Remove procMount or set it to Default.",
+			model.Evidence{Observed: "procMount: " + *context.ProcMount, Expected: "procMount: Default"},
+			"SOC2:CC6", "Kubernetes:PSS-Baseline",
+		))
+	}
+
+	if observed, unsafe := appArmorRisk(context.AppArmorProfile); !windows && unsafe {
+		findings = append(findings, containerFinding(
+			workload, container,
+			"CP-K8S-015", model.SeverityHigh,
+			"AppArmor profile is overridden to an unconfined state",
+			"Disabling AppArmor removes a mandatory access-control layer expected by the Baseline profile.",
+			"Set appArmorProfile.type to RuntimeDefault or a reviewed Localhost profile, or remove the override.",
+			model.Evidence{Observed: observed, Expected: "RuntimeDefault or Localhost"},
+			"SOC2:CC6", "Kubernetes:PSS-Baseline",
+		))
+	}
+
+	if observed, unsafe := seLinuxRisk(context.SELinuxOptions); !windows && unsafe {
+		findings = append(findings, containerFinding(
+			workload, container,
+			"CP-K8S-016", model.SeverityHigh,
+			"Disallowed SELinux options requested",
+			"Custom SELinux users, roles, or types can escape the container security domain.",
+			"Remove seLinuxOptions.user and role, and keep type unset or one of the allowed container types.",
+			model.Evidence{Observed: observed, Expected: "allowed SELinux container types only"},
+			"SOC2:CC6", "Kubernetes:PSS-Baseline",
+		))
+	}
+
+	if hostProcessEnabled(context.WindowsOptions) {
+		findings = append(findings, containerFinding(
+			workload, container,
+			"CP-K8S-017", model.SeverityCritical,
+			"Windows HostProcess pod requested",
+			"HostProcess containers run directly on the Windows host and are equivalent to privileged access.",
+			"Set windowsOptions.hostProcess to false unless the workload has a reviewed infrastructure exception.",
+			model.Evidence{Observed: "hostProcess: true", Expected: "hostProcess: false"},
 			"SOC2:CC6", "Kubernetes:PSS-Baseline",
 		))
 	}
@@ -242,6 +369,139 @@ func unexpectedCapabilities(capabilities []string) []string {
 	}
 	sort.Strings(unexpected)
 	return unexpected
+}
+
+// restrictedVolumeTypes is the exact volume source allowlist of the PSS
+// Restricted profile.
+var restrictedVolumeTypes = map[string]struct{}{
+	"configMap":             {},
+	"csi":                   {},
+	"downwardAPI":           {},
+	"emptyDir":              {},
+	"ephemeral":             {},
+	"persistentVolumeClaim": {},
+	"projected":             {},
+	"secret":                {},
+}
+
+func restrictedVolumeViolations(volumes []manifest.Volume) []string {
+	var unexpected []string
+	seen := make(map[string]struct{})
+	for _, volume := range volumes {
+		for _, volumeType := range volume.Types {
+			if volumeType == "hostPath" {
+				continue // reported separately by CP-K8S-003
+			}
+			if _, allowed := restrictedVolumeTypes[volumeType]; allowed {
+				continue
+			}
+			entry := volume.Name + ":" + volumeType
+			if _, exists := seen[entry]; exists {
+				continue
+			}
+			seen[entry] = struct{}{}
+			unexpected = append(unexpected, entry)
+		}
+	}
+	sort.Strings(unexpected)
+	return unexpected
+}
+
+// safeSysctls is the Kubernetes safe sysctl allowlist evaluated by the
+// catalog's pinned minor. Entries added in later minors are included only
+// when every supported minor accepts them.
+var safeSysctls = map[string]struct{}{
+	"kernel.shm_rmid_forced":              {},
+	"net.ipv4.ip_local_port_range":        {},
+	"net.ipv4.ip_local_reserved_ports":    {},
+	"net.ipv4.ip_unprivileged_port_start": {},
+	"net.ipv4.ping_group_range":           {},
+	"net.ipv4.tcp_fin_timeout":            {},
+	"net.ipv4.tcp_keepalive_intvl":        {},
+	"net.ipv4.tcp_keepalive_probes":       {},
+	"net.ipv4.tcp_keepalive_time":         {},
+	"net.ipv4.tcp_rmem":                   {},
+	"net.ipv4.tcp_syncookies":             {},
+	"net.ipv4.tcp_wmem":                   {},
+}
+
+func unsafeSysctls(sysctls []manifest.Sysctl) []string {
+	var unsafe []string
+	seen := make(map[string]struct{})
+	for _, sysctl := range sysctls {
+		name := strings.TrimSpace(sysctl.Name)
+		if name == "" {
+			name = "(unnamed sysctl)"
+		}
+		if _, safe := safeSysctls[name]; safe {
+			continue
+		}
+		if _, exists := seen[name]; exists {
+			continue
+		}
+		seen[name] = struct{}{}
+		unsafe = append(unsafe, name)
+	}
+	sort.Strings(unsafe)
+	return unsafe
+}
+
+func appArmorRisk(profile *manifest.AppArmor) (string, bool) {
+	if profile == nil {
+		return "", false
+	}
+	switch strings.ToLower(profile.Type) {
+	case "runtimedefault", "localhost":
+		return "", false
+	case "unconfined":
+		return "appArmorProfile.type: Unconfined", true
+	default:
+		return "appArmorProfile.type: " + profile.Type, true
+	}
+}
+
+func seLinuxRisk(options *manifest.SELinux) (string, bool) {
+	if options == nil {
+		return "", false
+	}
+	var observed []string
+	if options.User != "" {
+		observed = append(observed, "user set")
+	}
+	if options.Role != "" {
+		observed = append(observed, "role set")
+	}
+	switch options.Type {
+	case "", "container_t", "container_init_t", "container_kvm_t", "container_engine_t":
+	default:
+		observed = append(observed, "type: "+options.Type)
+	}
+	if len(observed) == 0 {
+		return "", false
+	}
+	return strings.Join(observed, ", "), true
+}
+
+func hostProcessEnabled(options *manifest.WindowsOpts) bool {
+	return options != nil && options.HostProcess != nil && *options.HostProcess
+}
+
+func hostPorts(ports []manifest.ContainerPort) []string {
+	var bound []string
+	seen := make(map[string]struct{})
+	for _, port := range ports {
+		if port.HostPort == 0 {
+			continue
+		}
+		value := fmt.Sprintf("%d", port.HostPort)
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		bound = append(bound, value)
+	}
+	sort.Strings(bound)
+	return bound
 }
 
 func containsFold(values []string, expected string) bool {
