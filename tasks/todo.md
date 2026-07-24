@@ -279,7 +279,7 @@ release the trustworthy daily-use milestone.
 
 **Verification:**
 - [ ] A public example repository passes and fails on the expected fixtures.
-- [ ] Tests, race, vet, static analysis, release archives, and Krew install pass.
+- [x] Tests, race, vet, static analysis, release archives, and Krew install pass.
 
 **Dependencies:** Tasks 20-25
 **Files likely touched:** `action.yml`, `.github/*`, `examples/*`, `docs/*`, `deploy/krew/*`
