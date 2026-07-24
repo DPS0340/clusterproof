@@ -615,13 +615,13 @@ exact-identity VEX suppression to imported vulnerability findings.
 requires as runnable directories, not prose.
 
 **Acceptance criteria:**
-- [ ] `examples/repository-ci/` gates a sample repo with the pinned Action and SARIF upload.
-- [ ] `examples/cluster-scan/` documents the read-only scan with exact RBAC needed per scope.
-- [ ] `examples/soc2-evidence/` walks scan -> evidence -> sign -> verify -> auditor handoff.
+- [x] `examples/repository-ci/` gates a sample repo with the pinned Action and SARIF upload.
+- [x] `examples/cluster-scan/` documents the read-only scan with exact RBAC needed per scope.
+- [x] `examples/soc2-evidence/` walks scan -> evidence -> sign -> verify -> auditor handoff.
 
 **Verification:**
-- [ ] Each example runs against a released binary with documented expected output.
-- [ ] README links all three and the quickstart still reaches CI in under 15 minutes.
+- [x] Each example runs against a released binary with documented expected output.
+- [x] README links all three and the quickstart still reaches CI in under 15 minutes.
 
 **Dependencies:** Tasks 26, 39
 **Files likely touched:** `examples/*`, `README.md`
@@ -633,8 +633,8 @@ requires as runnable directories, not prose.
 bundles verify across adjacent release binaries.
 
 **Acceptance criteria:**
-- [ ] Go native fuzz targets exist for manifest, exception, trust, SBOM, and VEX parsers.
-- [ ] CI runs each fuzzer for a bounded time on every main push.
+- [x] Go native fuzz targets exist for manifest, exception, trust, SBOM, and VEX parsers.
+- [x] CI runs each fuzzer for a bounded time on every main push.
 - [ ] v0.5-produced evidence verifies with the current binary and vice versa for unsigned bundles.
 
 **Verification:**

@@ -143,9 +143,13 @@ binary and verifies its SHA-256 before executing anything:
     sarif-output: clusterproof.sarif
 ```
 
-A complete workflow, including SARIF upload to code scanning, is in
-[examples/github-actions-ci.yml](examples/github-actions-ci.yml). The action
-needs no cluster credentials and grants no write access.
+Three runnable examples cover the main adoption paths: a
+[repository CI gate](examples/repository-ci/README.md) with SARIF upload,
+a [read-only cluster scan](examples/cluster-scan/README.md) with the exact
+RBAC each scope needs, and a
+[SOC 2 technical evidence handoff](examples/soc2-evidence/README.md) from
+scan through signed bundle to auditor verification. The action needs no
+cluster credentials and grants no write access.
 
 Exit codes are `0` for a successful policy pass, `2` when findings meet the
 requested threshold, and `1` for operational errors.

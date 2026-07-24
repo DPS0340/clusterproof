@@ -194,7 +194,7 @@ control-plane implementation must not begin before Task 41 is complete.
 - [x] Task 42: Freeze rule IDs and publish the remaining contract schemas.
 - [x] Task 43: Wire signature/provenance verification into `scan` behind opt-in flags.
 - [x] Task 44: Wire SBOM/VEX suppression into `scan` with recorded identities.
-- [ ] Task 45: Publish the three runnable adoption examples.
+- [x] Task 45: Publish the three runnable adoption examples.
 - [ ] Task 46: Add parser fuzzing to CI and the cross-version verify test.
 - [ ] Task 47: Release v0.7 and declare the v1 contract freeze eligibility.
 

@@ -77,3 +77,21 @@ jobs:
           Draft202012Validator(json.load(open('schemas/compare-v1.schema.json'))).validate(json.load(open('/tmp/compare.json')))
           print('live comparison: valid')
           EOF
+
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Fuzz untrusted-input parsers (bounded)
+        run: |
+          go test -fuzz=FuzzLoadBytes -fuzztime=30s ./internal/manifest/
+          go test -fuzz=FuzzLoad -fuzztime=30s ./internal/exception/
+          go test -fuzz=FuzzParse -fuzztime=30s ./internal/trust/
+          go test -fuzz=FuzzParse -fuzztime=30s ./internal/sbom/
+          go test -fuzz=FuzzParse -fuzztime=30s ./internal/vex/

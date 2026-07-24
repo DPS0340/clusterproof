@@ -1,0 +1,45 @@
+# Minimum RBAC for a full ClusterProof attack-surface scan.
+# Remove rules for scopes you do not request; the default scan needs
+# only the workload-resources rule.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: clusterproof-readonly
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["list"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["list"]
+  # namespaces scope (Pod Security Admission labels):
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["list"]
+  # rbac scope (privilege-path analysis):
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "clusterroles", "rolebindings", "clusterrolebindings"]
+    verbs: ["list"]
+  # network scope (default-deny and exposure analysis):
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["list"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: clusterproof-readonly
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: clusterproof-readonly
+subjects:
+  - kind: ServiceAccount
+    namespace: security
+    name: clusterproof-scanner
