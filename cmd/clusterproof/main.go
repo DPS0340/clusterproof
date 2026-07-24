@@ -16,6 +16,7 @@ import (
 	"github.com/DPS0340/clusterproof/internal/compare"
 	"github.com/DPS0340/clusterproof/internal/evidence"
 	"github.com/DPS0340/clusterproof/internal/exception"
+	"github.com/DPS0340/clusterproof/internal/image"
 	"github.com/DPS0340/clusterproof/internal/manifest"
 	"github.com/DPS0340/clusterproof/internal/model"
 	"github.com/DPS0340/clusterproof/internal/network"
@@ -77,6 +78,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return runCompare(args[1:], stdout, stderr)
 	case "trust":
 		return runTrust(args[1:], stdout, stderr)
+	case "image":
+		return runImage(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
 		printUsage(stderr)
@@ -328,6 +331,50 @@ func printTrustUsage(writer io.Writer) {
 Shows the exact effective supply-chain trust policy. The policy is data
 only: it pins identities, issuers, public keys, builders, sources, and
 allowed predicate types, and never contains private key material.`)
+}
+
+func runImage(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
+		printImageUsage(stdout)
+		return 0
+	}
+	if len(args) < 2 || args[0] != "inventory" {
+		fmt.Fprintln(stderr, "clusterproof: image requires: inventory PATH")
+		printImageUsage(stderr)
+		return 1
+	}
+	path := args[1]
+	if len(args) > 2 {
+		fmt.Fprintln(stderr, "clusterproof: image inventory accepts exactly one path")
+		return 1
+	}
+
+	loaded, err := manifest.Load(path, manifest.DefaultLimits())
+	if err != nil {
+		fmt.Fprintf(stderr, "clusterproof: load manifests: %v\n", err)
+		return 1
+	}
+	inventory := image.Inventory(loaded.Workloads)
+	data, err := image.MarshalInventory(inventory)
+	if err != nil {
+		fmt.Fprintf(stderr, "clusterproof: encode inventory: %v\n", err)
+		return 1
+	}
+	if _, err := stdout.Write(data); err != nil {
+		fmt.Fprintf(stderr, "clusterproof: write inventory: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func printImageUsage(writer io.Writer) {
+	fmt.Fprintln(writer, `Usage:
+  clusterproof image inventory PATH
+
+Exports a deterministic JSON inventory of every image reference in the
+scanned manifests, including registry, repository, tag, digest, and the
+workloads using each image. The inventory is offline: no registry is
+contacted.`)
 }
 
 func printExplainUsage(writer io.Writer) {
@@ -810,6 +857,7 @@ Usage:
   clusterproof explain RULE_ID
   clusterproof compare BEFORE AFTER
   clusterproof trust show POLICY_PATH
+  clusterproof image inventory PATH
   clusterproof version
 
 Run "clusterproof scan --help" for scan flags.`)

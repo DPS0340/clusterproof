@@ -164,7 +164,7 @@ control-plane implementation must not begin before Task 41 is complete.
 ### Phase 8: v0.6 Verifiable Supply Chain
 
 - [x] Task 34: Define the supply-chain trust-policy contract.
-- [ ] Task 35: Export image inventory and resolve tags to digests explicitly.
+- [x] Task 35: Export image inventory and resolve tags to digests explicitly.
 - [ ] Task 36: Verify Sigstore signatures with pinned identities.
 - [ ] Task 37: Verify SLSA v1.2 provenance against exact subjects.
 - [ ] Task 38: Import bounded SPDX/CycloneDX SBOM and VEX data.

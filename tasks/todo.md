@@ -435,13 +435,13 @@ issuers, builders, sources, and allowed attestation predicates.
 to exact registry digests.
 
 **Acceptance criteria:**
-- [ ] Offline inventory works without registry access.
-- [ ] Resolution requires explicit opt-in, timeout, registry allowlist, and output limits.
-- [ ] Registry credentials and tokens are never persisted or emitted.
+- [x] Offline inventory works without registry access.
+- [x] Resolution requires explicit opt-in, timeout, registry allowlist, and output limits.
+- [x] Registry credentials and tokens are never persisted or emitted.
 
 **Verification:**
-- [ ] Fake-registry tests cover digest match, tag movement, auth failure, timeout, and oversized response.
-- [ ] Evidence records the resolved digest, registry, timestamp, and network use.
+- [x] Fake-registry tests cover digest match, tag movement, auth failure, timeout, and oversized response.
+- [x] Evidence records the resolved digest, registry, timestamp, and network use.
 
 **Dependencies:** Task 34
 **Files likely touched:** `internal/image/*`, `internal/model/*`, `cmd/clusterproof/*`, `docs/*`
