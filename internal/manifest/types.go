@@ -14,8 +14,10 @@ type Workload struct {
 	Namespace  string
 	Name       string
 	OwnerKinds []string
-	Location   model.Location
-	PodSpec    PodSpec
+	// PodLabels are the pod (template) labels used for selector matching.
+	PodLabels map[string]string
+	Location  model.Location
+	PodSpec   PodSpec
 }
 
 // Target returns a stable namespace/kind/name resource identity.
@@ -198,7 +200,36 @@ type Result struct {
 	// the rbac scope. Rules retain verbs and resource names only.
 	RBACRoles    []RBACRole
 	RBACBindings []RBACBinding
-	Inputs       []model.Input
+	// NetworkPolicies and Services hold normalized network objects
+	// collected by the network scope.
+	NetworkPolicies []NetworkPolicy
+	Services        []Service
+	Inputs          []model.Input
+}
+
+// NetworkPolicy is the normalized selector and direction data of one policy.
+type NetworkPolicy struct {
+	Namespace string
+	Name      string
+	// SelectsAllPods is true when podSelector is empty (matches every pod).
+	SelectsAllPods bool
+	// PodSelectorLabels holds matchLabels of a non-empty selector.
+	PodSelectorLabels map[string]string
+	// PolicyTypes lists the declared policy directions.
+	PolicyTypes []string
+	// HasIngressRules and HasEgressRules report whether allow rules exist.
+	HasIngressRules bool
+	HasEgressRules  bool
+	Location        model.Location
+}
+
+// Service is the normalized exposure data of one Kubernetes Service.
+type Service struct {
+	Namespace string
+	Name      string
+	Type      string // ClusterIP, NodePort, LoadBalancer, ExternalName
+	Selector  map[string]string
+	Location  model.Location
 }
 
 // Namespace is the metadata-only normalization of one Kubernetes Namespace.

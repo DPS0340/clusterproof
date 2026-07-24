@@ -97,8 +97,8 @@ func LoadBytes(source string, data []byte, limits Limits) (Result, error) {
 	}
 
 	sum := sha256.Sum256(data)
-	workloads, namespaces, roles, bindings, _, err := decodeFileRBAC(source, data, 0, limits)
-	if err != nil {
+	var parsed parsedObjects
+	if _, err := decodeAll(&parsed, source, data, 0, limits); err != nil {
 		return Result{}, err
 	}
 	return Result{
@@ -107,10 +107,12 @@ func LoadBytes(source string, data []byte, limits Limits) (Result, error) {
 			SHA256: hex.EncodeToString(sum[:]),
 			Bytes:  int64(len(data)),
 		}},
-		Workloads:    workloads,
-		Namespaces:   namespaces,
-		RBACRoles:    roles,
-		RBACBindings: bindings,
+		Workloads:       parsed.workloads,
+		Namespaces:      parsed.namespaces,
+		RBACRoles:       parsed.roles,
+		RBACBindings:    parsed.bindings,
+		NetworkPolicies: parsed.policies,
+		Services:        parsed.services,
 	}, nil
 }
 
@@ -190,16 +192,23 @@ func readBounded(path string, maxBytes int64) ([]byte, error) {
 }
 
 func decodeFileFull(path string, data []byte, priorDocuments int, limits Limits) ([]Workload, []Namespace, int, error) {
-	workloads, namespaces, _, _, count, err := decodeFileRBAC(path, data, priorDocuments, limits)
-	return workloads, namespaces, count, err
+	var parsed parsedObjects
+	count, err := decodeAll(&parsed, path, data, priorDocuments, limits)
+	return parsed.workloads, parsed.namespaces, count, err
 }
 
-func decodeFileRBAC(path string, data []byte, priorDocuments int, limits Limits) ([]Workload, []Namespace, []RBACRole, []RBACBinding, int, error) {
+// parsedObjects accumulates every normalized object kind from one input.
+type parsedObjects struct {
+	workloads  []Workload
+	namespaces []Namespace
+	roles      []RBACRole
+	bindings   []RBACBinding
+	policies   []NetworkPolicy
+	services   []Service
+}
+
+func decodeAll(parsed *parsedObjects, path string, data []byte, priorDocuments int, limits Limits) (int, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	var workloads []Workload
-	var namespaces []Namespace
-	var roles []RBACRole
-	var bindings []RBACBinding
 	documents := 0
 
 	for {
@@ -209,46 +218,34 @@ func decodeFileRBAC(path string, data []byte, priorDocuments int, limits Limits)
 			break
 		}
 		if err != nil {
-			return nil, nil, nil, nil, documents, fmt.Errorf("decode manifest %q document %d: %w", path, documents+1, err)
+			return documents, fmt.Errorf("decode manifest %q document %d: %w", path, documents+1, err)
 		}
 		if len(document.Content) == 0 {
 			continue
 		}
 		documents++
 		if priorDocuments+documents > limits.MaxDocuments {
-			return nil, nil, nil, nil, documents, fmt.Errorf("manifest input exceeds document limit of %d", limits.MaxDocuments)
+			return documents, fmt.Errorf("manifest input exceeds document limit of %d", limits.MaxDocuments)
 		}
 		if err := validateNode(&document, limits); err != nil {
-			return nil, nil, nil, nil, documents, fmt.Errorf("validate manifest %q document %d: %w", path, documents, err)
+			return documents, fmt.Errorf("validate manifest %q document %d: %w", path, documents, err)
 		}
 
 		var resource rawResource
 		if err := document.Decode(&resource); err != nil {
-			return nil, nil, nil, nil, documents, fmt.Errorf("normalize manifest %q document %d: %w", path, documents, err)
+			return documents, fmt.Errorf("normalize manifest %q document %d: %w", path, documents, err)
 		}
-		newWorkloads, newNamespaces, newRoles, newBindings := normalizeResourceRBAC(resource, path, documents, document.Content[0].Line)
-		workloads = append(workloads, newWorkloads...)
-		namespaces = append(namespaces, newNamespaces...)
-		roles = append(roles, newRoles...)
-		bindings = append(bindings, newBindings...)
+		normalizeInto(parsed, resource, path, documents, document.Content[0].Line)
 	}
-	return workloads, namespaces, roles, bindings, documents, nil
+	return documents, nil
 }
 
-func normalizeResourceRBAC(resource rawResource, path string, document, line int) ([]Workload, []Namespace, []RBACRole, []RBACBinding) {
+func normalizeInto(parsed *parsedObjects, resource rawResource, path string, document, line int) {
 	if resource.Kind == "List" {
-		var workloads []Workload
-		var namespaces []Namespace
-		var roles []RBACRole
-		var bindings []RBACBinding
 		for _, item := range resource.Items {
-			newWorkloads, newNamespaces, newRoles, newBindings := normalizeResourceRBAC(item, path, document, line)
-			workloads = append(workloads, newWorkloads...)
-			namespaces = append(namespaces, newNamespaces...)
-			roles = append(roles, newRoles...)
-			bindings = append(bindings, newBindings...)
+			normalizeInto(parsed, item, path, document, line)
 		}
-		return workloads, namespaces, roles, bindings
+		return
 	}
 
 	location := model.Location{
@@ -263,22 +260,24 @@ func normalizeResourceRBAC(resource rawResource, path string, document, line int
 		for key, value := range resource.Metadata.Labels {
 			labels[key] = value
 		}
-		return nil, []Namespace{{
+		parsed.namespaces = append(parsed.namespaces, Namespace{
 			Name:     resource.Metadata.Name,
 			Labels:   labels,
 			Location: location,
-		}}, nil, nil
+		})
+		return
 	}
 
 	if resource.Kind == "Role" || resource.Kind == "ClusterRole" {
-		return nil, nil, []RBACRole{{
+		parsed.roles = append(parsed.roles, RBACRole{
 			Kind:       resource.Kind,
 			Namespace:  resource.Metadata.Namespace,
 			Name:       resource.Metadata.Name,
 			Rules:      normalizeRBACRules(resource.Rules),
 			Aggregates: len(resource.AggregationRule.ClusterRoleSelectors) > 0,
 			Location:   location,
-		}}, nil
+		})
+		return
 	}
 
 	if resource.Kind == "RoleBinding" || resource.Kind == "ClusterRoleBinding" {
@@ -290,7 +289,7 @@ func normalizeResourceRBAC(resource rawResource, path string, document, line int
 				Name:      subject.Name,
 			})
 		}
-		return nil, nil, nil, []RBACBinding{{
+		parsed.bindings = append(parsed.bindings, RBACBinding{
 			Kind:      resource.Kind,
 			Namespace: resource.Metadata.Namespace,
 			Name:      resource.Metadata.Name,
@@ -298,22 +297,65 @@ func normalizeResourceRBAC(resource rawResource, path string, document, line int
 			RoleName:  resource.RoleRef.Name,
 			Subjects:  subjects,
 			Location:  location,
-		}}
+		})
+		return
+	}
+
+	if resource.Kind == "NetworkPolicy" {
+		policyTypes := append([]string(nil), resource.Spec.PolicyTypes...)
+		parsed.policies = append(parsed.policies, NetworkPolicy{
+			Namespace:         resource.Metadata.Namespace,
+			Name:              resource.Metadata.Name,
+			SelectsAllPods:    len(resource.Spec.PodSelector.MatchLabels) == 0 && len(resource.Spec.PodSelector.MatchExpressions) == 0,
+			PodSelectorLabels: copyLabels(resource.Spec.PodSelector.MatchLabels),
+			PolicyTypes:       policyTypes,
+			HasIngressRules:   len(resource.Spec.Ingress) > 0,
+			HasEgressRules:    len(resource.Spec.Egress) > 0,
+			Location:          location,
+		})
+		return
+	}
+
+	if resource.Kind == "Service" {
+		serviceType := resource.Spec.Type
+		if serviceType == "" {
+			serviceType = "ClusterIP"
+		}
+		parsed.services = append(parsed.services, Service{
+			Namespace: resource.Metadata.Namespace,
+			Name:      resource.Metadata.Name,
+			Type:      serviceType,
+			Selector:  copyLabels(resource.Spec.Selector),
+			Location:  location,
+		})
+		return
 	}
 
 	podSpec, ok := resource.podSpec()
 	if !ok {
-		return nil, nil, nil, nil
+		return
 	}
-	return []Workload{{
+	parsed.workloads = append(parsed.workloads, Workload{
 		APIVersion: resource.APIVersion,
 		Kind:       resource.Kind,
 		Namespace:  resource.Metadata.Namespace,
 		Name:       resource.Metadata.Name,
 		OwnerKinds: ownerKinds(resource.Metadata.OwnerReferences),
+		PodLabels:  resource.podLabels(),
 		Location:   location,
 		PodSpec:    podSpec,
-	}}, nil, nil, nil
+	})
+}
+
+func copyLabels(labels map[string]string) map[string]string {
+	if len(labels) == 0 {
+		return nil
+	}
+	result := make(map[string]string, len(labels))
+	for key, value := range labels {
+		result[key] = value
+	}
+	return result
 }
 
 func normalizeRBACRules(rules []rawPolicyRule) []RBACRule {
@@ -414,10 +456,27 @@ type rawSpec struct {
 	PodSpec     `yaml:",inline"`
 	Template    rawTemplate    `yaml:"template"`
 	JobTemplate rawJobTemplate `yaml:"jobTemplate"`
+	// Network fields for NetworkPolicy and Service normalization.
+	PodSelector rawSelector       `yaml:"podSelector"`
+	PolicyTypes []string          `yaml:"policyTypes"`
+	Ingress     []map[string]any  `yaml:"ingress"`
+	Egress      []map[string]any  `yaml:"egress"`
+	Type        string            `yaml:"type"`
+	Selector    map[string]string `yaml:"selector"`
 }
 
 type rawTemplate struct {
-	Spec PodSpec `yaml:"spec"`
+	Metadata rawTemplateMetadata `yaml:"metadata"`
+	Spec     PodSpec             `yaml:"spec"`
+}
+
+type rawTemplateMetadata struct {
+	Labels map[string]string `yaml:"labels"`
+}
+
+type rawSelector struct {
+	MatchLabels      map[string]string `yaml:"matchLabels"`
+	MatchExpressions []map[string]any  `yaml:"matchExpressions"`
 }
 
 type rawJobTemplate struct {
@@ -436,5 +495,20 @@ func (r rawResource) podSpec() (PodSpec, bool) {
 		return r.Spec.JobTemplate.Spec.Template.Spec, true
 	default:
 		return PodSpec{}, false
+	}
+}
+
+// podLabels returns the labels used for NetworkPolicy and Service selector
+// matching: pod labels for a Pod, template labels for controllers.
+func (r rawResource) podLabels() map[string]string {
+	switch r.Kind {
+	case "Pod":
+		return copyLabels(r.Metadata.Labels)
+	case "Deployment", "StatefulSet", "DaemonSet", "ReplicaSet", "Job":
+		return copyLabels(r.Spec.Template.Metadata.Labels)
+	case "CronJob":
+		return copyLabels(r.Spec.JobTemplate.Spec.Template.Metadata.Labels)
+	default:
+		return nil
 	}
 }

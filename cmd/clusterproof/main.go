@@ -18,6 +18,7 @@ import (
 	"github.com/DPS0340/clusterproof/internal/exception"
 	"github.com/DPS0340/clusterproof/internal/manifest"
 	"github.com/DPS0340/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/network"
 	"github.com/DPS0340/clusterproof/internal/policyreport"
 	"github.com/DPS0340/clusterproof/internal/rbac"
 	"github.com/DPS0340/clusterproof/internal/report"
@@ -404,6 +405,21 @@ func runScan(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		findings = append(findings, rbacFindings...)
 	}
+	networkCollected := len(loaded.NetworkPolicies) > 0 || len(loaded.Services) > 0
+	for _, scope := range scopeAssessments {
+		if scope.Scope == cluster.ScopeNetwork && scope.Status == cluster.ScopeStatusCollected {
+			networkCollected = true
+		}
+	}
+	if networkCollected {
+		networkFindings, networkErr := network.Analyze(
+			loaded.Workloads, loaded.NetworkPolicies, loaded.Services, network.DefaultLimits())
+		if networkErr != nil {
+			fmt.Fprintf(stderr, "clusterproof: analyze network: %v\n", networkErr)
+			return 1
+		}
+		findings = append(findings, networkFindings...)
+	}
 
 	if options.policyJSON != "" {
 		imported, err := policyreport.Load(options.policyJSON, policyreport.DefaultLimits())
@@ -693,7 +709,7 @@ Flags:
   --namespace NAME           Scan one namespace (default all namespaces)
   --cluster-scopes LIST      Comma-separated read scopes (default workloads;
                              also: namespaces for PSA labels, rbac for
-                             privilege-path analysis)
+                             privilege paths, network for segmentation)
   -h, --help                 Show help
 
 Use - to read bounded multi-document YAML or JSON from stdin, for example:

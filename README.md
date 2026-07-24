@@ -106,7 +106,11 @@ Roles, ClusterRoles, RoleBindings, and ClusterRoleBindings — never Secrets
 or credential payloads — and reports high-signal privilege paths such as
 wildcard grants, Secrets read access, workload creation, `pods/exec`,
 impersonation, bind/escalate, and token minting, each identifying the exact
-subject-to-role path. When the caller lacks
+subject-to-role path. The `network` scope reads NetworkPolicies and
+Services to report namespaces without default-deny coverage and externally
+reachable Services that select host-namespace or privileged workloads;
+results describe declared policy objects only and never claim effective
+packet filtering, which depends on the installed CNI. When the caller lacks
 `list` permission for a scope, the scan continues and records the scope as
 `denied` in the report's `cluster_scopes` field — missing permission is
 reported as a partial assessment, never as a clean result.

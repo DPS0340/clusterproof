@@ -345,13 +345,13 @@ to identify high-signal privilege paths.
 resources while documenting CNI-dependent limitations.
 
 **Acceptance criteria:**
-- [ ] Detect absent default-deny coverage and externally exposed sensitive workloads.
-- [ ] Selector, namespace, ingress, egress, Service, Ingress, and supported Gateway relationships are bounded.
-- [ ] Results never claim effective packet filtering without a supported CNI signal.
+- [x] Detect absent default-deny coverage and externally exposed sensitive workloads.
+- [x] Selector, namespace, ingress, egress, Service, Ingress, and supported Gateway relationships are bounded.
+- [x] Results never claim effective packet filtering without a supported CNI signal.
 
 **Verification:**
-- [ ] Fixtures cover selector overlap, empty selectors, dual-stack data, and unselected workloads.
-- [ ] Collection and graph-size abuse tests pass.
+- [x] Fixtures cover selector overlap, empty selectors, dual-stack data, and unselected workloads.
+- [x] Collection and graph-size abuse tests pass.
 
 **Dependencies:** Task 27
 **Files likely touched:** `internal/cluster/*`, `internal/network/*`, `internal/model/*`, `cmd/clusterproof/*`

@@ -169,6 +169,13 @@ var rbacSource = SourceReference{
 	Relationship: RelationshipAligned,
 }
 
+var networkPolicySource = SourceReference{
+	Name:         "Kubernetes Network Policies",
+	Version:      "v1.36",
+	URL:          "https://kubernetes.io/docs/concepts/services-networking/network-policies/",
+	Relationship: RelationshipAligned,
+}
+
 var slsaSource = SourceReference{
 	Name:         "SLSA Specification",
 	Version:      "v1.2",
@@ -182,7 +189,7 @@ var linuxOnly = []WorkloadOS{OSLinux}
 var defaultCatalog = Catalog{
 	SchemaVersion: "1",
 	ID:            "clusterproof-default",
-	Version:       "1.3.0",
+	Version:       "1.4.0",
 	Kubernetes: VersionContract{
 		KubernetesMinor: "1.36",
 		SupportedMinors: []string{"1.34", "1.35", "1.36"},
@@ -446,6 +453,22 @@ var defaultCatalog = Catalog{
 			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:RBAC-Good-Practices"},
 			Sources:     []SourceReference{rbacSource},
+		},
+		{
+			ID: "CP-NET-001", Title: "Namespace lacks default-deny NetworkPolicy coverage", Category: "network",
+			Description: "Without a namespace-wide policy, every pod accepts traffic that the CNI would otherwise filter.",
+			Remediation: "Add a NetworkPolicy with an empty podSelector that declares both Ingress and Egress policy types.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:NetworkPolicy"},
+			Sources:     []SourceReference{networkPolicySource},
+		},
+		{
+			ID: "CP-NET-002", Title: "High-risk workload exposed outside the cluster", Category: "network",
+			Description: "An externally reachable Service selects a workload whose posture weakens node isolation.",
+			Remediation: "Fix the workload posture or move it behind a ClusterIP Service and an authenticating proxy.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:NetworkPolicy"},
+			Sources:     []SourceReference{networkPolicySource},
 		},
 		{
 			ID: "CP-SUPPLY-001", Title: "Container image uses a mutable latest tag", Category: "supply-chain",

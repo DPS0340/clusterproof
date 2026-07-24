@@ -24,12 +24,17 @@ const ScopeNamespaces = "namespaces"
 // for privilege-path analysis. No Secret or credential data is requested.
 const ScopeRBAC = "rbac"
 
+// ScopeNetwork reads NetworkPolicies and Services for segmentation and
+// exposure analysis. No Endpoint payload or packet data is requested.
+const ScopeNetwork = "network"
+
 // scopeResources is the fixed, versioned read allowlist. Verbs are never
 // configurable: every scope is exactly one bounded kubectl get.
 var scopeResources = map[string]string{
 	ScopeWorkloads:  workloadResources,
 	ScopeNamespaces: "namespaces",
 	ScopeRBAC:       "roles.rbac.authorization.k8s.io,clusterroles.rbac.authorization.k8s.io,rolebindings.rbac.authorization.k8s.io,clusterrolebindings.rbac.authorization.k8s.io",
+	ScopeNetwork:    "networkpolicies.networking.k8s.io,services",
 }
 
 // ScopeNames returns the sorted names of every defined scope.
@@ -138,6 +143,8 @@ func CollectScopes(ctx context.Context, options Options, scopes []string) (Scope
 		aggregate.Result.Namespaces = append(aggregate.Result.Namespaces, result.Namespaces...)
 		aggregate.Result.RBACRoles = append(aggregate.Result.RBACRoles, result.RBACRoles...)
 		aggregate.Result.RBACBindings = append(aggregate.Result.RBACBindings, result.RBACBindings...)
+		aggregate.Result.NetworkPolicies = append(aggregate.Result.NetworkPolicies, result.NetworkPolicies...)
+		aggregate.Result.Services = append(aggregate.Result.Services, result.Services...)
 		aggregate.Result.Inputs = append(aggregate.Result.Inputs, result.Inputs...)
 		aggregate.Scopes = append(aggregate.Scopes, ScopeStatus{
 			Scope:     scope,

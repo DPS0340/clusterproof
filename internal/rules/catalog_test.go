@@ -8,6 +8,7 @@ import (
 
 	"github.com/DPS0340/clusterproof/internal/manifest"
 	"github.com/DPS0340/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/network"
 	"github.com/DPS0340/clusterproof/internal/rbac"
 )
 
@@ -55,6 +56,7 @@ func TestDefaultCatalogCoversEveryNativeFinding(t *testing.T) {
 	findings := Evaluate(workload)
 	findings = append(findings, EvaluateNamespaces(allPSAViolationsNamespaces())...)
 	findings = append(findings, allRBACFindings(t)...)
+	findings = append(findings, allNetworkFindings(t)...)
 	emitted := make([]string, 0, len(findings))
 	for _, finding := range findings {
 		emitted = append(emitted, finding.ID)
@@ -114,6 +116,31 @@ func allRBACFindings(t *testing.T) []model.Finding {
 	findings, err := rbac.Analyze(roles, bindings, rbac.DefaultLimits())
 	if err != nil {
 		t.Fatalf("Analyze RBAC: %v", err)
+	}
+	return findings
+}
+
+func allNetworkFindings(t *testing.T) []model.Finding {
+	t.Helper()
+	privileged := true
+	exposed := manifest.Workload{
+		Kind: "Deployment", Namespace: "payments", Name: "legacy",
+		PodLabels: map[string]string{"app": "legacy"},
+		PodSpec: manifest.PodSpec{
+			HostNetwork: true,
+			Containers: []manifest.Container{{
+				Name: "app", Image: "example/app:v1",
+				SecurityContext: manifest.SecurityContext{Privileged: &privileged},
+			}},
+		},
+	}
+	services := []manifest.Service{{
+		Namespace: "payments", Name: "external", Type: "LoadBalancer",
+		Selector: map[string]string{"app": "legacy"},
+	}}
+	findings, err := network.Analyze([]manifest.Workload{exposed}, nil, services, network.DefaultLimits())
+	if err != nil {
+		t.Fatalf("Analyze network: %v", err)
 	}
 	return findings
 }
@@ -330,8 +357,8 @@ func TestCatalogOSMetadataMatchesRuleGating(t *testing.T) {
 		emitted[finding.ID] = true
 	}
 	for _, rule := range catalog.Rules {
-		if rule.Category == "namespace-admission" || rule.Category == "rbac" {
-			continue // evaluated against Namespace metadata or RBAC objects, not workloads
+		if rule.Category == "namespace-admission" || rule.Category == "rbac" || rule.Category == "network" {
+			continue // evaluated against Namespace, RBAC, or network objects, not single workloads
 		}
 		if emitted[rule.ID] && !windowsApplicable[rule.ID] {
 			t.Fatalf("rule %s emitted on windows but cataloged Linux-only", rule.ID)
