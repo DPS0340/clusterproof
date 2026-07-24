@@ -57,6 +57,10 @@ func TestDefaultCatalogCoversEveryNativeFinding(t *testing.T) {
 	findings = append(findings, EvaluateNamespaces(allPSAViolationsNamespaces())...)
 	findings = append(findings, allRBACFindings(t)...)
 	findings = append(findings, allNetworkFindings(t)...)
+	findings = append(findings,
+		UnpinnedImageFinding("demo/Pod/unpinned", "example/app:latest"),
+		SignatureFailedFinding("demo/Pod/pinned", "identity subject: cosign rejected the signature"),
+	)
 	emitted := make([]string, 0, len(findings))
 	for _, finding := range findings {
 		emitted = append(emitted, finding.ID)
@@ -357,8 +361,9 @@ func TestCatalogOSMetadataMatchesRuleGating(t *testing.T) {
 		emitted[finding.ID] = true
 	}
 	for _, rule := range catalog.Rules {
-		if rule.Category == "namespace-admission" || rule.Category == "rbac" || rule.Category == "network" {
-			continue // evaluated against Namespace, RBAC, or network objects, not single workloads
+		if rule.Category == "namespace-admission" || rule.Category == "rbac" || rule.Category == "network" ||
+			rule.ID == "CP-SUPPLY-003" || rule.ID == "CP-SUPPLY-004" {
+			continue // evaluated against non-workload objects or verification outcomes
 		}
 		if emitted[rule.ID] && !windowsApplicable[rule.ID] {
 			t.Fatalf("rule %s emitted on windows but cataloged Linux-only", rule.ID)

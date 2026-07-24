@@ -252,6 +252,32 @@ Verification reports integrity and authenticity separately: a bundle's
 embedded key never proves who signed it — only a `--signer-key` you pin
 out of band does. ClusterProof never generates or stores private keys.
 
+Run supply-chain verification inside a scan with one command:
+
+```bash
+clusterproof scan ./deploy \
+  --trust-policy trust-policy.yaml \
+  --verify-signatures \
+  --signature-bundle sigstore-bundle.json
+```
+
+Digest-pinned images are verified against the trust policy through cosign;
+failures become `CP-SUPPLY-004` findings and unpinned images become
+`CP-SUPPLY-003` findings instead of being silently skipped. Verification is
+offline by default; `--allow-signature-network` explicitly opts into online
+transparency-log lookups.
+
+Apply VEX statements to imported vulnerability findings:
+
+```bash
+clusterproof scan ./deploy --trivy-json trivy.json --vex openvex.json
+```
+
+Only an exact vulnerability-and-package (purl) match with an unexpired
+`not_affected` (justified) or `fixed` statement suppresses a finding, and
+every suppressed identity is recorded in `suppressed_findings` alongside
+exception suppressions.
+
 Explicit Trivy enrichment:
 
 ```bash

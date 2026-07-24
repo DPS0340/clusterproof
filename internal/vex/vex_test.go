@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DPS0340/clusterproof/internal/model"
 )
 
 const validVEX = `{
@@ -134,5 +136,57 @@ func TestParseLimitsFailClosed(t *testing.T) {
 	limits.MaxStatements = 1
 	if _, err := Parse(strings.NewReader(validVEX), limits); err == nil {
 		t.Fatal("statement count above limit accepted")
+	}
+}
+
+func vulnFinding(vulnerability, purl string) model.Finding {
+	external := map[string]string{}
+	if vulnerability != "" {
+		external["vulnerability"] = vulnerability
+	}
+	if purl != "" {
+		external["purl"] = purl
+	}
+	return model.Finding{
+		ID:           "CP-VULN-001",
+		Severity:     model.SeverityHigh,
+		Target:       "image/layer",
+		ExternalRefs: external,
+	}
+}
+
+func TestApplyToFindingsSuppressesExactMatchOnly(t *testing.T) {
+	document := parse(t, validVEX)
+	now := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
+	findings := []model.Finding{
+		vulnFinding("CVE-2026-1234", "pkg:npm/left-pad@1.3.0"), // suppressed: not_affected
+		vulnFinding("CVE-2026-5678", "pkg:generic/zlib@1.3.1"), // kept: affected
+		vulnFinding("CVE-2026-1234", "pkg:npm/left-pad@1.2.0"), // kept: wrong version
+		vulnFinding("CVE-2026-1234", ""),                       // kept: no purl identity
+		vulnFinding("", "pkg:npm/left-pad@1.3.0"),              // kept: no vulnerability ID
+	}
+
+	kept, suppressed := document.ApplyToFindings(findings, now, DefaultMaxAge)
+	if len(kept) != 4 || len(suppressed) != 1 {
+		t.Fatalf("kept=%d suppressed=%d, want 4/1", len(kept), len(suppressed))
+	}
+	entry := suppressed[0]
+	if entry.RuleID != "CP-VULN-001" || !strings.Contains(entry.Reason, "not_affected") ||
+		!strings.Contains(entry.Reason, "vulnerable_code_not_in_execute_path") {
+		t.Fatalf("suppressed identity incomplete: %#v", entry)
+	}
+	if entry.Owner != "Example Security Team" {
+		t.Fatalf("owner = %q", entry.Owner)
+	}
+}
+
+func TestApplyToFindingsStaleStatementsKeepFindings(t *testing.T) {
+	document := parse(t, validVEX)
+	later := time.Date(2028, 7, 24, 0, 0, 0, 0, time.UTC)
+	findings := []model.Finding{vulnFinding("CVE-2026-1234", "pkg:npm/left-pad@1.3.0")}
+
+	kept, suppressed := document.ApplyToFindings(findings, later, DefaultMaxAge)
+	if len(kept) != 1 || len(suppressed) != 0 {
+		t.Fatalf("stale VEX suppressed a finding: kept=%d suppressed=%d", len(kept), len(suppressed))
 	}
 }

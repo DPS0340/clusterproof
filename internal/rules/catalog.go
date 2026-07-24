@@ -189,7 +189,7 @@ var linuxOnly = []WorkloadOS{OSLinux}
 var defaultCatalog = Catalog{
 	SchemaVersion: "1",
 	ID:            "clusterproof-default",
-	Version:       "1.4.0",
+	Version:       "1.5.0",
 	Kubernetes: VersionContract{
 		KubernetesMinor: "1.36",
 		SupportedMinors: []string{"1.34", "1.35", "1.36"},
@@ -486,7 +486,30 @@ var defaultCatalog = Catalog{
 			ControlRefs: []string{"SOC2:CC7", "SLSA:Provenance"},
 			Sources:     []SourceReference{slsaSource},
 		},
+		{
+			ID: "CP-SUPPLY-003", Title: "Image cannot be signature verified without a digest", Category: "supply-chain",
+			Description: "Signature verification binds trust to exact bytes; a floating tag has no exact identity to verify.",
+			Remediation: "Pin the image to its sha256 digest, then re-run signature verification.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC7", "SLSA:Provenance"},
+			Sources:     []SourceReference{sigstoreSource},
+		},
+		{
+			ID: "CP-SUPPLY-004", Title: "Image signature verification failed", Category: "supply-chain",
+			Description: "No signature satisfied the pinned trust policy for this digest-pinned image.",
+			Remediation: "Sign the image with an identity or key from the trust policy, or correct the policy if the signer changed legitimately.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC7", "SLSA:Provenance"},
+			Sources:     []SourceReference{sigstoreSource},
+		},
 	},
+}
+
+var sigstoreSource = SourceReference{
+	Name:         "Sigstore Cosign Verification",
+	Version:      "v2",
+	URL:          "https://docs.sigstore.dev/cosign/verifying/verify/",
+	Relationship: RelationshipSupplemental,
 }
 
 // DefaultCatalog returns an independent copy of the built-in native ruleset.

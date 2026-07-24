@@ -23,8 +23,11 @@ type result struct {
 }
 
 type vulnerability struct {
-	ID               string `json:"VulnerabilityID"`
-	Package          string `json:"PkgName"`
+	ID            string `json:"VulnerabilityID"`
+	Package       string `json:"PkgName"`
+	PkgIdentifier struct {
+		PURL string `json:"PURL"`
+	} `json:"PkgIdentifier"`
 	InstalledVersion string `json:"InstalledVersion"`
 	FixedVersion     string `json:"FixedVersion"`
 	Severity         string `json:"Severity"`
@@ -95,6 +98,9 @@ func normalizeVulnerabilities(result result) []model.Finding {
 		}
 		if strings.HasPrefix(vulnerability.PrimaryURL, "https://") {
 			external["advisory"] = vulnerability.PrimaryURL
+		}
+		if purl := cleanText(vulnerability.PkgIdentifier.PURL); purl != "" {
+			external["purl"] = purl
 		}
 		findings = append(findings, model.Finding{
 			ID:          "CP-VULN-001",

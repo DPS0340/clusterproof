@@ -25,12 +25,15 @@ import (
 	"github.com/DPS0340/clusterproof/internal/rbac"
 	"github.com/DPS0340/clusterproof/internal/report"
 	"github.com/DPS0340/clusterproof/internal/rules"
+	"github.com/DPS0340/clusterproof/internal/sigstore"
 	"github.com/DPS0340/clusterproof/internal/trivy"
 	"github.com/DPS0340/clusterproof/internal/trust"
+	"github.com/DPS0340/clusterproof/internal/vex"
 )
 
 var version = "dev"
 var kubectlExecutable = "kubectl"
+var cosignExecutable = "cosign"
 
 type scanOptions struct {
 	target      string
@@ -47,7 +50,12 @@ type scanOptions struct {
 	policyJSON  string
 	openReports string
 	exceptions  string
+	vexJSON     string
+	trustPolicy string
+	sigBundle   string
 	withTrivy   bool
+	verifySigs  bool
+	sigNetwork  bool
 }
 
 func main() {
@@ -729,16 +737,37 @@ func runScan(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		findings = append(findings, enriched...)
 	}
+
+	if options.verifySigs {
+		verificationFindings, err := verifyImageSignatures(loaded.Workloads, options)
+		if err != nil {
+			fmt.Fprintf(stderr, "clusterproof: verify signatures: %v\n", err)
+			return 1
+		}
+		findings = append(findings, verificationFindings...)
+	}
 	sortFindings(findings)
 
 	var suppressed []model.SuppressedFinding
+	if options.vexJSON != "" {
+		document, loadErr := vex.Load(options.vexJSON, vex.DefaultLimits())
+		if loadErr != nil {
+			fmt.Fprintf(stderr, "clusterproof: load VEX: %v\n", loadErr)
+			return 1
+		}
+		var vexSuppressed []model.SuppressedFinding
+		findings, vexSuppressed = document.ApplyToFindings(findings, time.Now().UTC(), vex.DefaultMaxAge)
+		suppressed = append(suppressed, vexSuppressed...)
+	}
 	if options.exceptions != "" {
 		entries, loadErr := exception.Load(options.exceptions, exception.DefaultLimits())
 		if loadErr != nil {
 			fmt.Fprintf(stderr, "clusterproof: load exceptions: %v\n", loadErr)
 			return 1
 		}
-		findings, suppressed = exception.Apply(findings, entries, time.Now().UTC())
+		var exceptionSuppressed []model.SuppressedFinding
+		findings, exceptionSuppressed = exception.Apply(findings, entries, time.Now().UTC())
+		suppressed = append(suppressed, exceptionSuppressed...)
 	}
 
 	rulesetReference := rules.DefaultCatalog().Reference()
@@ -822,6 +851,9 @@ func parseScanOptions(args []string) (scanOptions, bool, error) {
 		"--policy-report-json": &options.policyJSON,
 		"--openreports-json":   &options.openReports,
 		"--exceptions":         &options.exceptions,
+		"--vex":                &options.vexJSON,
+		"--trust-policy":       &options.trustPolicy,
+		"--signature-bundle":   &options.sigBundle,
 		"--kubeconfig":         &options.kubeconfig,
 		"--context":            &options.context,
 		"--namespace":          &options.namespace,
@@ -835,6 +867,14 @@ func parseScanOptions(args []string) (scanOptions, bool, error) {
 		}
 		if current == "--with-trivy" {
 			options.withTrivy = true
+			continue
+		}
+		if current == "--verify-signatures" {
+			options.verifySigs = true
+			continue
+		}
+		if current == "--allow-signature-network" {
+			options.sigNetwork = true
 			continue
 		}
 		if current == "--" {
@@ -913,6 +953,22 @@ func parseScanOptions(args []string) (scanOptions, bool, error) {
 	if options.trivyJSON != "" && options.withTrivy {
 		return options, false, fmt.Errorf("--trivy-json and --with-trivy cannot be combined")
 	}
+	if options.verifySigs && options.trustPolicy == "" {
+		return options, false, fmt.Errorf("--verify-signatures requires --trust-policy")
+	}
+	if options.sigNetwork && !options.verifySigs {
+		return options, false, fmt.Errorf("--allow-signature-network requires --verify-signatures")
+	}
+	if options.sigBundle != "" && !options.verifySigs {
+		return options, false, fmt.Errorf("--signature-bundle requires --verify-signatures")
+	}
+	if options.verifySigs && !options.sigNetwork && options.sigBundle == "" {
+		return options, false, fmt.Errorf(
+			"--verify-signatures is offline by default and needs --signature-bundle, or explicit --allow-signature-network")
+	}
+	if options.vexJSON != "" && options.trivyJSON == "" && !options.withTrivy {
+		return options, false, fmt.Errorf("--vex requires vulnerability findings from --trivy-json or --with-trivy")
+	}
 	switch options.format {
 	case "table", "json", "sarif":
 	default:
@@ -924,6 +980,39 @@ func parseScanOptions(args []string) (scanOptions, bool, error) {
 		}
 	}
 	return options, false, nil
+}
+
+// verifyImageSignatures verifies every digest-pinned image in the scanned
+// workloads against the trust policy. Unpinned images become findings, not
+// silent skips: an unverifiable image must be visible.
+func verifyImageSignatures(workloads []manifest.Workload, options scanOptions) ([]model.Finding, error) {
+	policy, err := trust.Load(options.trustPolicy, trust.DefaultLimits())
+	if err != nil {
+		return nil, fmt.Errorf("load trust policy: %w", err)
+	}
+	sigstoreOptions := sigstore.DefaultOptions()
+	sigstoreOptions.Executable = cosignExecutable
+	sigstoreOptions.AllowNetwork = options.sigNetwork
+	sigstoreOptions.BundlePath = options.sigBundle
+
+	var findings []model.Finding
+	for _, reference := range image.Inventory(workloads) {
+		if !reference.Pinned() {
+			findings = append(findings, rules.UnpinnedImageFinding(
+				strings.Join(reference.Workloads, ", "), reference.Raw))
+			continue
+		}
+		verification, verifyErr := sigstore.Verify(context.Background(), reference, policy, sigstoreOptions)
+		if verifyErr != nil {
+			return nil, fmt.Errorf("verify %s: %w", reference.Raw, verifyErr)
+		}
+		if verification.Verified {
+			continue
+		}
+		findings = append(findings, rules.SignatureFailedFinding(
+			strings.Join(reference.Workloads, ", "), verification.FailureCause))
+	}
+	return findings, nil
 }
 
 func sortFindings(findings []model.Finding) {
@@ -979,6 +1068,11 @@ Flags:
   --policy-report-json PATH  Import wgpolicyk8s PolicyReport JSON results
   --openreports-json PATH    Import openreports.io results (experimental)
   --exceptions PATH          Apply a reviewed repository exception file
+  --vex PATH                 Apply OpenVEX suppression to vulnerability findings
+  --trust-policy PATH        Trust policy for signature verification
+  --verify-signatures        Verify digest-pinned images against the trust policy
+  --signature-bundle PATH    Offline Sigstore bundle for verification
+  --allow-signature-network  Permit online transparency-log lookups (recorded)
   --with-trivy               Explicitly run local Trivy (may update its databases)
   --kubeconfig PATH          Read workloads from the selected cluster
   --context NAME             Kubeconfig context (default current context)

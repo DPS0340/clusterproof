@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/DPS0340/clusterproof/internal/model"
 )
 
 // Limits bounds work performed on an untrusted VEX document.
@@ -196,6 +198,56 @@ func (d Document) SuppressionFor(vulnerability, productPURL string, now time.Tim
 		return statement, true
 	}
 	return Statement{}, false
+}
+
+// DefaultMaxAge is the default staleness bound for VEX statements.
+const DefaultMaxAge = 365 * 24 * time.Hour
+
+// ApplyToFindings partitions vulnerability findings into kept and
+// suppressed sets. A finding is suppressed only when its external_refs
+// carry both the exact vulnerability ID and the exact package purl that an
+// unexpired not_affected or fixed statement covers. Findings without a
+// purl identity are never suppressed: an ambiguous identity cannot clear a
+// finding.
+func (d Document) ApplyToFindings(findings []model.Finding, now time.Time, maxAge time.Duration) ([]model.Finding, []model.SuppressedFinding) {
+	kept := make([]model.Finding, 0, len(findings))
+	var suppressed []model.SuppressedFinding
+	for _, finding := range findings {
+		vulnerability := finding.ExternalRefs["vulnerability"]
+		productPURL := finding.ExternalRefs["purl"]
+		if vulnerability == "" || productPURL == "" {
+			kept = append(kept, finding)
+			continue
+		}
+		statement, matched := d.SuppressionFor(vulnerability, productPURL, now, maxAge)
+		if !matched {
+			kept = append(kept, finding)
+			continue
+		}
+		reason := "VEX " + string(statement.Status)
+		if statement.Justification != "" {
+			reason += ": " + statement.Justification
+		}
+		suppressed = append(suppressed, model.SuppressedFinding{
+			RuleID:   finding.ID,
+			Severity: finding.Severity,
+			Target:   finding.Target,
+			Owner:    d.Author,
+			Reason:   reason,
+			Expires:  statement.Timestamp.Add(maxAge).Format("2006-01-02"),
+			Location: model.Location{
+				Path:      finding.Location.Path,
+				Container: finding.Location.Container,
+			},
+		})
+	}
+	sort.Slice(suppressed, func(i, j int) bool {
+		if suppressed[i].RuleID != suppressed[j].RuleID {
+			return suppressed[i].RuleID < suppressed[j].RuleID
+		}
+		return suppressed[i].Target < suppressed[j].Target
+	})
+	return kept, suppressed
 }
 
 func clean(value string, maxLength int) string {

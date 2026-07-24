@@ -42,6 +42,8 @@ var frozenRuleIDs = map[string]string{
 	"CP-NET-002":    "High-risk workload exposed outside the cluster",
 	"CP-SUPPLY-001": "Container image uses a mutable latest tag",
 	"CP-SUPPLY-002": "Container image is not digest pinned",
+	"CP-SUPPLY-003": "Image cannot be signature verified without a digest",
+	"CP-SUPPLY-004": "Image signature verification failed",
 }
 
 // TestRuleIDsAreFrozen proves no released rule ID is removed, retitled to

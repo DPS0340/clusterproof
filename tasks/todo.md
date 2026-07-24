@@ -579,13 +579,13 @@ aspirational.
 scan for digest-pinned images, using the trust policy, behind explicit opt-in.
 
 **Acceptance criteria:**
-- [ ] `scan --trust-policy PATH --verify-signatures` verifies each digest-pinned image and emits findings for failures.
-- [ ] Offline remains the default; network use requires a separate explicit flag and is recorded in evidence.
-- [ ] Unpinned images are reported as unverifiable, never silently skipped.
+- [x] `scan --trust-policy PATH --verify-signatures` verifies each digest-pinned image and emits findings for failures.
+- [x] Offline remains the default; network use requires a separate explicit flag and is recorded in evidence.
+- [x] Unpinned images are reported as unverifiable, never silently skipped.
 
 **Verification:**
-- [ ] Fake-cosign CLI tests cover verified, rejected, unpinned, and missing-policy paths.
-- [ ] Evidence bundles record verification outcomes per image.
+- [x] Fake-cosign CLI tests cover verified, rejected, unpinned, and missing-policy paths.
+- [x] Evidence bundles record verification outcomes per image.
 
 **Dependencies:** Tasks 34-37
 **Files likely touched:** `cmd/clusterproof/*`, `internal/sigstore/*`, `internal/evidence/*`, `docs/*`
@@ -597,13 +597,13 @@ scan for digest-pinned images, using the trust policy, behind explicit opt-in.
 exact-identity VEX suppression to imported vulnerability findings.
 
 **Acceptance criteria:**
-- [ ] `scan --sbom PATH --vex PATH` suppresses only exact vulnerability/product matches.
-- [ ] Suppressed identities are recorded in the report like exception suppressions.
-- [ ] Stale or ambiguous VEX statements never suppress; the maximum age is configurable and bounded.
+- [x] `scan --sbom PATH --vex PATH` suppresses only exact vulnerability/product matches.
+- [x] Suppressed identities are recorded in the report like exception suppressions.
+- [x] Stale or ambiguous VEX statements never suppress; the maximum age is configurable and bounded.
 
 **Verification:**
-- [ ] CLI tests cover exact match, near-miss identity, stale statement, and malformed input.
-- [ ] JSON/SARIF/evidence stay deterministic with and without VEX input.
+- [x] CLI tests cover exact match, near-miss identity, stale statement, and malformed input.
+- [x] JSON/SARIF/evidence stay deterministic with and without VEX input.
 
 **Dependencies:** Task 38
 **Files likely touched:** `cmd/clusterproof/*`, `internal/vex/*`, `internal/model/*`, `docs/*`

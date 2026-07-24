@@ -886,3 +886,230 @@ func TestRunCompareRejectsBadArguments(t *testing.T) {
 		t.Fatalf("bad format accepted: %d", code)
 	}
 }
+
+func writeVerifyFixtures(t *testing.T) (root, policyPath, bundlePath string) {
+	t.Helper()
+	root = t.TempDir()
+	manifest := `
+apiVersion: v1
+kind: Pod
+metadata: {name: mixed, namespace: payments}
+spec:
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile: {type: RuntimeDefault}
+  automountServiceAccountToken: false
+  containers:
+    - name: pinned
+      image: ghcr.io/example/pinned@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        readOnlyRootFilesystem: true
+        capabilities: {drop: [ALL]}
+    - name: floating
+      image: ghcr.io/example/floating:v1
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        readOnlyRootFilesystem: true
+        capabilities: {drop: [ALL]}
+`
+	if err := os.WriteFile(filepath.Join(root, "pod.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	policyPath = filepath.Join(t.TempDir(), "trust.yaml")
+	policy := `schema_version: "1"
+identities:
+  - subject: https://github.com/example/app/.github/workflows/release.yml@refs/tags/v1.0.0
+    issuer: https://token.actions.githubusercontent.com
+`
+	if err := os.WriteFile(policyPath, []byte(policy), 0o600); err != nil {
+		t.Fatalf("write policy: %v", err)
+	}
+	bundlePath = filepath.Join(t.TempDir(), "bundle.json")
+	if err := os.WriteFile(bundlePath, []byte("{}"), 0o600); err != nil {
+		t.Fatalf("write bundle: %v", err)
+	}
+	return root, policyPath, bundlePath
+}
+
+func setFakeCosign(t *testing.T, script string) {
+	t.Helper()
+	executable := filepath.Join(t.TempDir(), "fake-cosign")
+	if err := os.WriteFile(executable, []byte(script), 0o700); err != nil {
+		t.Fatalf("write fake cosign: %v", err)
+	}
+	previous := cosignExecutable
+	cosignExecutable = executable
+	t.Cleanup(func() { cosignExecutable = previous })
+}
+
+func TestRunScanVerifySignaturesReportsOutcomes(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("release targets darwin and linux")
+	}
+	root, policyPath, bundlePath := writeVerifyFixtures(t)
+	// cosign rejects everything: the pinned image fails verification.
+	setFakeCosign(t, "#!/bin/sh\necho 'no matching signatures' >&2\nexit 1\n")
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"scan", root,
+		"--trust-policy", policyPath,
+		"--verify-signatures",
+		"--signature-bundle", bundlePath,
+		"--format", "json",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr=%s", code, stderr.String())
+	}
+	var scan model.Report
+	if err := json.Unmarshal(stdout.Bytes(), &scan); err != nil {
+		t.Fatalf("invalid JSON output: %v\n%s", err, stdout.String())
+	}
+	ids := make(map[string]int)
+	for _, finding := range scan.Findings {
+		ids[finding.ID]++
+	}
+	if ids["CP-SUPPLY-004"] != 1 {
+		t.Fatalf("pinned image verification failure missing: %#v", ids)
+	}
+	if ids["CP-SUPPLY-003"] != 1 {
+		t.Fatalf("unpinned image must be reported unverifiable, not skipped: %#v", ids)
+	}
+}
+
+func TestRunScanVerifySignaturesPassesVerifiedImages(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("release targets darwin and linux")
+	}
+	root, policyPath, bundlePath := writeVerifyFixtures(t)
+	setFakeCosign(t, "#!/bin/sh\nprintf '[{\"claim\":true}]'\n")
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"scan", root,
+		"--trust-policy", policyPath,
+		"--verify-signatures",
+		"--signature-bundle", bundlePath,
+		"--format", "json",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr=%s", code, stderr.String())
+	}
+	var scan model.Report
+	if err := json.Unmarshal(stdout.Bytes(), &scan); err != nil {
+		t.Fatalf("invalid JSON output: %v\n%s", err, stdout.String())
+	}
+	for _, finding := range scan.Findings {
+		if finding.ID == "CP-SUPPLY-004" {
+			t.Fatalf("verified image reported as failed: %#v", finding)
+		}
+	}
+}
+
+func TestParseScanOptionsVerifySignatureConstraints(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "verify without policy", args: []string{"./deploy", "--verify-signatures", "--signature-bundle", "b.json"}},
+		{name: "verify offline without bundle", args: []string{"./deploy", "--trust-policy", "t.yaml", "--verify-signatures"}},
+		{name: "network without verify", args: []string{"./deploy", "--allow-signature-network"}},
+		{name: "bundle without verify", args: []string{"./deploy", "--signature-bundle", "b.json"}},
+		{name: "vex without vulnerability source", args: []string{"./deploy", "--vex", "vex.json"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, _, err := parseScanOptions(test.args); err == nil {
+				t.Fatalf("parseScanOptions(%#v) succeeded", test.args)
+			}
+		})
+	}
+}
+
+func TestRunScanAppliesVEXToTrivyFindings(t *testing.T) {
+	root := t.TempDir()
+	manifest := `
+apiVersion: v1
+kind: Pod
+metadata: {name: safe}
+spec:
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile: {type: RuntimeDefault}
+  containers:
+    - name: app
+      image: example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        readOnlyRootFilesystem: true
+        capabilities: {drop: [ALL]}
+`
+	if err := os.WriteFile(filepath.Join(root, "pod.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	trivyJSON := `{
+	  "Results": [{
+	    "Target": "example/app",
+	    "Vulnerabilities": [
+	      {"VulnerabilityID": "CVE-2026-1234", "PkgName": "left-pad",
+	       "PkgIdentifier": {"PURL": "pkg:npm/left-pad@1.3.0"},
+	       "InstalledVersion": "1.3.0", "Severity": "HIGH"},
+	      {"VulnerabilityID": "CVE-2026-9999", "PkgName": "zlib",
+	       "PkgIdentifier": {"PURL": "pkg:generic/zlib@1.3.1"},
+	       "InstalledVersion": "1.3.1", "Severity": "HIGH"}
+	    ]
+	  }]
+	}`
+	trivyPath := filepath.Join(t.TempDir(), "trivy.json")
+	if err := os.WriteFile(trivyPath, []byte(trivyJSON), 0o600); err != nil {
+		t.Fatalf("write trivy JSON: %v", err)
+	}
+	vexJSON := `{
+	  "@context": "https://openvex.dev/ns/v0.2.0",
+	  "author": "Example Security Team",
+	  "timestamp": "2026-07-01T00:00:00Z",
+	  "statements": [{
+	    "vulnerability": {"name": "CVE-2026-1234"},
+	    "products": [{"identifiers": {"purl": "pkg:npm/left-pad@1.3.0"}}],
+	    "status": "not_affected",
+	    "justification": "vulnerable_code_not_in_execute_path"
+	  }]
+	}`
+	vexPath := filepath.Join(t.TempDir(), "vex.json")
+	if err := os.WriteFile(vexPath, []byte(vexJSON), 0o600); err != nil {
+		t.Fatalf("write VEX: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"scan", root,
+		"--trivy-json", trivyPath,
+		"--vex", vexPath,
+		"--format", "json",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr=%s", code, stderr.String())
+	}
+	var scan model.Report
+	if err := json.Unmarshal(stdout.Bytes(), &scan); err != nil {
+		t.Fatalf("invalid JSON output: %v\n%s", err, stdout.String())
+	}
+	remaining := make(map[string]bool)
+	for _, finding := range scan.Findings {
+		remaining[finding.ExternalRefs["vulnerability"]] = true
+	}
+	if remaining["CVE-2026-1234"] {
+		t.Fatal("exact VEX not_affected match was not suppressed")
+	}
+	if !remaining["CVE-2026-9999"] {
+		t.Fatal("uncovered vulnerability disappeared")
+	}
+	if len(scan.Suppressed) != 1 || !strings.Contains(scan.Suppressed[0].Reason, "not_affected") {
+		t.Fatalf("VEX suppression identity missing: %#v", scan.Suppressed)
+	}
+}
