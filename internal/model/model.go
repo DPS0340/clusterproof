@@ -125,6 +125,16 @@ const AssessmentStatusAssessed = "assessed"
 // supported workload; its empty finding list is not a clean result.
 const AssessmentStatusNoWorkloads = "no_workloads_assessed"
 
+// ScopeAssessment records the honest outcome of one requested cluster
+// collection scope. A denied or absent scope was not assessed and must
+// never be interpreted as no_findings_observed.
+type ScopeAssessment struct {
+	Scope     string `json:"scope"`
+	Resources string `json:"resources"`
+	Status    string `json:"status"`
+	Detail    string `json:"detail,omitempty"`
+}
+
 // Report is the canonical output consumed by every reporter.
 type Report struct {
 	SchemaVersion string            `json:"schema_version"`
@@ -134,8 +144,11 @@ type Report struct {
 	Ruleset       *RulesetReference `json:"ruleset,omitempty"`
 	// Assessment is additive; it is populated by v0.4 and later scans.
 	Assessment *Assessment `json:"assessment,omitempty"`
-	Inputs     []Input     `json:"inputs"`
-	Findings   []Finding   `json:"findings"`
+	// Scopes is additive; it lists per-scope cluster collection outcomes
+	// for scans that requested cluster scopes.
+	Scopes   []ScopeAssessment `json:"cluster_scopes,omitempty"`
+	Inputs   []Input           `json:"inputs"`
+	Findings []Finding         `json:"findings"`
 	// Suppressed lists findings hidden by reviewed repository exceptions.
 	// The field is additive and omitted when no exception file is used, so
 	// existing schema-version 1 consumers continue to decode reports.

@@ -538,3 +538,128 @@ func TestRunScanMarksAssessedWorkloads(t *testing.T) {
 		t.Fatalf("assessment = %#v, want assessed with workloads", scan.Assessment)
 	}
 }
+
+func TestRunScanClusterScopesRecordPartialAssessment(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("release targets darwin and linux")
+	}
+	executable := filepath.Join(t.TempDir(), "fake-kubectl")
+	script := `#!/bin/sh
+case "$*" in
+*"get namespaces"*)
+  echo 'Error from server (Forbidden): namespaces is forbidden' >&2
+  exit 1
+  ;;
+*)
+  printf '%s' 'apiVersion: v1
+kind: List
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata: {name: api, namespace: payments}
+  spec:
+    template:
+      spec:
+        containers:
+        - {name: api, image: example/api:v1}
+'
+  ;;
+esac
+`
+	if err := os.WriteFile(executable, []byte(script), 0o700); err != nil {
+		t.Fatalf("write fake kubectl: %v", err)
+	}
+	previousExecutable := kubectlExecutable
+	kubectlExecutable = executable
+	t.Cleanup(func() { kubectlExecutable = previousExecutable })
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"scan",
+		"--kubeconfig", filepath.Join(t.TempDir(), "config"),
+		"--cluster-scopes", "workloads,namespaces",
+		"--format", "json",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr=%s", code, stderr.String())
+	}
+	var scan model.Report
+	if err := json.Unmarshal(stdout.Bytes(), &scan); err != nil {
+		t.Fatalf("invalid JSON output: %v\n%s", err, stdout.String())
+	}
+	if len(scan.Scopes) != 2 {
+		t.Fatalf("cluster_scopes = %#v, want 2 entries", scan.Scopes)
+	}
+	byScope := make(map[string]model.ScopeAssessment)
+	for _, scope := range scan.Scopes {
+		byScope[scope.Scope] = scope
+	}
+	if byScope["workloads"].Status != "collected" {
+		t.Fatalf("workloads scope = %#v", byScope["workloads"])
+	}
+	if byScope["namespaces"].Status != "denied" || byScope["namespaces"].Detail == "" {
+		t.Fatalf("namespaces scope = %#v, want denied with detail", byScope["namespaces"])
+	}
+}
+
+func TestRunScanClusterScopesEvaluatePSALabels(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("release targets darwin and linux")
+	}
+	executable := filepath.Join(t.TempDir(), "fake-kubectl")
+	script := `#!/bin/sh
+case "$*" in
+*"get namespaces"*)
+  printf '%s' 'apiVersion: v1
+kind: List
+items:
+- apiVersion: v1
+  kind: Namespace
+  metadata: {name: unlabeled}
+'
+  ;;
+*)
+  printf '%s' 'apiVersion: v1
+kind: List
+items: []
+'
+  ;;
+esac
+`
+	if err := os.WriteFile(executable, []byte(script), 0o700); err != nil {
+		t.Fatalf("write fake kubectl: %v", err)
+	}
+	previousExecutable := kubectlExecutable
+	kubectlExecutable = executable
+	t.Cleanup(func() { kubectlExecutable = previousExecutable })
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"scan",
+		"--kubeconfig", filepath.Join(t.TempDir(), "config"),
+		"--cluster-scopes", "workloads,namespaces",
+		"--format", "json",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr=%s", code, stderr.String())
+	}
+	var scan model.Report
+	if err := json.Unmarshal(stdout.Bytes(), &scan); err != nil {
+		t.Fatalf("invalid JSON output: %v\n%s", err, stdout.String())
+	}
+	found := false
+	for _, finding := range scan.Findings {
+		if finding.ID == "CP-K8S-018" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("missing PSA enforce finding: %#v", scan.Findings)
+	}
+}
+
+func TestParseScanOptionsClusterScopesRequireKubeconfig(t *testing.T) {
+	if _, _, err := parseScanOptions([]string{"./deploy", "--cluster-scopes", "namespaces"}); err == nil {
+		t.Fatal("--cluster-scopes without --kubeconfig accepted")
+	}
+}

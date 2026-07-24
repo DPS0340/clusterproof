@@ -291,13 +291,13 @@ release the trustworthy daily-use milestone.
 fixed read allowlists and explicit permission preflight.
 
 **Acceptance criteria:**
-- [ ] Every scope has a versioned resource/verb allowlist.
-- [ ] Permission denial is represented as partial or not assessed.
-- [ ] Default behavior remains the current workload-only read.
+- [x] Every scope has a versioned resource/verb allowlist.
+- [x] Permission denial is represented as partial or not assessed.
+- [x] Default behavior remains the current workload-only read.
 
 **Verification:**
-- [ ] Fake-kubectl tests assert every exact command and rejected argument.
-- [ ] Evidence lists collected, denied, absent, and unrequested scopes separately.
+- [x] Fake-kubectl tests assert every exact command and rejected argument.
+- [x] Evidence lists collected, denied, absent, and unrequested scopes separately.
 
 **Dependencies:** Tasks 24-25
 **Files likely touched:** `internal/cluster/*`, `internal/model/*`, `cmd/clusterproof/*`, `docs/*`
@@ -309,13 +309,13 @@ fixed read allowlists and explicit permission preflight.
 labels together with their pinned policy versions.
 
 **Acceptance criteria:**
-- [ ] Missing, `latest`, inconsistent, and weaker-than-configured labels are distinguished.
-- [ ] Namespace exemptions are observations, not automatically labeled vulnerabilities.
-- [ ] Results map to versioned upstream Pod Security Admission guidance.
+- [x] Missing, `latest`, inconsistent, and weaker-than-configured labels are distinguished.
+- [x] Namespace exemptions are observations, not automatically labeled vulnerabilities.
+- [x] Results map to versioned upstream Pod Security Admission guidance.
 
 **Verification:**
-- [ ] Fixtures cover all modes, levels, version labels, and namespace edge cases.
-- [ ] Cluster collection requests Namespace metadata only.
+- [x] Fixtures cover all modes, levels, version labels, and namespace edge cases.
+- [x] Cluster collection requests Namespace metadata only.
 
 **Dependencies:** Task 27
 **Files likely touched:** `internal/cluster/*`, `internal/manifest/*`, `internal/rules/*`, `docs/*`

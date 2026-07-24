@@ -155,6 +155,13 @@ var applicationChecklistSource = SourceReference{
 	Relationship: RelationshipSupplemental,
 }
 
+var psaSource = SourceReference{
+	Name:         "Kubernetes Pod Security Admission",
+	Version:      "v1.36",
+	URL:          "https://kubernetes.io/docs/concepts/security/pod-security-admission/",
+	Relationship: RelationshipAligned,
+}
+
 var slsaSource = SourceReference{
 	Name:         "SLSA Specification",
 	Version:      "v1.2",
@@ -168,7 +175,7 @@ var linuxOnly = []WorkloadOS{OSLinux}
 var defaultCatalog = Catalog{
 	SchemaVersion: "1",
 	ID:            "clusterproof-default",
-	Version:       "1.1.0",
+	Version:       "1.2.0",
 	Kubernetes: VersionContract{
 		KubernetesMinor: "1.36",
 		SupportedMinors: []string{"1.34", "1.35", "1.36"},
@@ -336,6 +343,46 @@ var defaultCatalog = Catalog{
 			OS:          []WorkloadOS{OSWindows},
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
 			Sources:     []SourceReference{pssSource},
+		},
+		{
+			ID: "CP-K8S-018", Title: "Namespace has no Pod Security Admission enforce level", Category: "namespace-admission",
+			Description: "Without an enforce label, the namespace admits pods that violate every Pod Security Standard.",
+			Remediation: "Set pod-security.kubernetes.io/enforce to baseline or restricted on the namespace.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSA"},
+			Sources:     []SourceReference{psaSource},
+		},
+		{
+			ID: "CP-K8S-019", Title: "Namespace Pod Security Admission level is not a defined value", Category: "namespace-admission",
+			Description: "An unrecognized enforce level is rejected by the admission controller and behaves like no enforcement.",
+			Remediation: "Use privileged, baseline, or restricted as the enforce level.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSA"},
+			Sources:     []SourceReference{psaSource},
+		},
+		{
+			ID: "CP-K8S-020", Title: "Namespace explicitly enforces the privileged profile", Category: "namespace-admission",
+			Description: "The privileged profile is intentionally unrestricted; workloads in this namespace bypass all PSS controls.",
+			Remediation: "Confirm the namespace requires privileged workloads or raise the enforce level to baseline.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSA"},
+			Sources:     []SourceReference{psaSource},
+		},
+		{
+			ID: "CP-K8S-021", Title: "Pod Security Admission version is not pinned", Category: "namespace-admission",
+			Description: "An unpinned or latest policy version silently changes admission behavior on cluster upgrades.",
+			Remediation: "Set pod-security.kubernetes.io/enforce-version to the tested Kubernetes minor, such as v1.36.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSA"},
+			Sources:     []SourceReference{psaSource},
+		},
+		{
+			ID: "CP-K8S-022", Title: "Audit or warn level is weaker than the enforce level", Category: "namespace-admission",
+			Description: "Weaker audit or warn levels hide violations that the next enforce-level increase would reject.",
+			Remediation: "Set audit and warn to at least the enforce level.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSA"},
+			Sources:     []SourceReference{psaSource},
 		},
 		{
 			ID: "CP-SUPPLY-001", Title: "Container image uses a mutable latest tag", Category: "supply-chain",

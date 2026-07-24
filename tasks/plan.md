@@ -146,8 +146,8 @@ control-plane implementation must not begin before Task 41 is complete.
 
 ### Phase 7: v0.5 Cluster Attack Surface
 
-- [ ] Task 27: Define opt-in cluster scopes and partial-assessment evidence.
-- [ ] Task 28: Assess namespace Pod Security Admission configuration.
+- [x] Task 27: Define opt-in cluster scopes and partial-assessment evidence.
+- [x] Task 28: Assess namespace Pod Security Admission configuration.
 - [ ] Task 29: Add bounded RBAC relationship analysis.
 - [ ] Task 30: Add NetworkPolicy and workload-exposure analysis.
 - [ ] Task 31: Add deterministic two-snapshot comparison.

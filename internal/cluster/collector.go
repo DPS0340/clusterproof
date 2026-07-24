@@ -58,6 +58,10 @@ func WorkloadArgs(options Options) []string {
 
 // Collect invokes kubectl without a shell and normalizes its in-memory YAML snapshot.
 func Collect(ctx context.Context, options Options) (manifest.Result, error) {
+	return runCollection(ctx, options, WorkloadArgs(options), "workloads")
+}
+
+func runCollection(ctx context.Context, options Options, args []string, scope string) (manifest.Result, error) {
 	if strings.TrimSpace(options.Kubeconfig) == "" {
 		return manifest.Result{}, errors.New("kubeconfig path is required")
 	}
@@ -81,7 +85,7 @@ func Collect(ctx context.Context, options Options) (manifest.Result, error) {
 
 	stdout := newCappedBuffer(options.MaxOutputBytes)
 	stderr := newCappedBuffer(options.MaxErrorBytes)
-	command := exec.CommandContext(runContext, executable, WorkloadArgs(options)...)
+	command := exec.CommandContext(runContext, executable, args...)
 	command.Stdout = stdout
 	command.Stderr = stderr
 
@@ -92,7 +96,7 @@ func Collect(ctx context.Context, options Options) (manifest.Result, error) {
 		if errors.Is(runContext.Err(), context.Canceled) {
 			return manifest.Result{}, fmt.Errorf("cluster collection canceled: %w", runContext.Err())
 		}
-		return manifest.Result{}, fmt.Errorf("kubectl get workloads failed: %w: %s", err, cleanText(stderr.String()))
+		return manifest.Result{}, fmt.Errorf("kubectl get %s failed: %w: %s", scope, err, cleanText(stderr.String()))
 	}
 	if stdout.exceeded {
 		return manifest.Result{}, fmt.Errorf("kubectl output exceeds limit of %d bytes", options.MaxOutputBytes)

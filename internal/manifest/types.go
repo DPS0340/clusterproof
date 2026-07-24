@@ -191,5 +191,15 @@ type HostPath struct {
 // Result contains normalized workloads and a content-hashed input inventory.
 type Result struct {
 	Workloads []Workload
-	Inputs    []model.Input
+	// Namespaces holds Namespace metadata collected for Pod Security
+	// Admission assessment. Only labels are retained; no payload data.
+	Namespaces []Namespace
+	Inputs     []model.Input
+}
+
+// Namespace is the metadata-only normalization of one Kubernetes Namespace.
+type Namespace struct {
+	Name     string
+	Labels   map[string]string
+	Location model.Location
 }

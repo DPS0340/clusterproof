@@ -32,6 +32,7 @@ type scanOptions struct {
 	kubeconfig  string
 	context     string
 	namespace   string
+	scopes      string
 	format      string
 	output      string
 	evidenceDir string
@@ -235,6 +236,7 @@ func runScan(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 
 	var loaded manifest.Result
+	var scopeAssessments []model.ScopeAssessment
 	scanTarget := options.target
 	switch {
 	case options.stdin:
@@ -264,9 +266,29 @@ func runScan(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		clusterOptions.Kubeconfig = options.kubeconfig
 		clusterOptions.Context = options.context
 		clusterOptions.Namespace = options.namespace
-		loaded, err = cluster.Collect(context.Background(), clusterOptions)
-		if err != nil {
-			fmt.Fprintf(stderr, "clusterproof: collect cluster: %v\n", err)
+		scopes := []string{cluster.ScopeWorkloads}
+		if options.scopes != "" {
+			scopes = strings.Split(options.scopes, ",")
+			for index, scope := range scopes {
+				scopes[index] = strings.TrimSpace(scope)
+			}
+		}
+		scoped, collectErr := cluster.CollectScopes(context.Background(), clusterOptions, scopes)
+		if collectErr != nil {
+			fmt.Fprintf(stderr, "clusterproof: collect cluster: %v\n", collectErr)
+			return 1
+		}
+		loaded = scoped.Result
+		for _, scope := range scoped.Scopes {
+			scopeAssessments = append(scopeAssessments, model.ScopeAssessment{
+				Scope:     scope.Scope,
+				Resources: scope.Resources,
+				Status:    scope.Status,
+				Detail:    scope.Detail,
+			})
+		}
+		if len(loaded.Inputs) == 0 {
+			fmt.Fprintln(stderr, "clusterproof: no requested cluster scope could be collected")
 			return 1
 		}
 		scanTarget = loaded.Inputs[0].Path
@@ -281,6 +303,7 @@ func runScan(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	for _, workload := range loaded.Workloads {
 		findings = append(findings, rules.Evaluate(workload)...)
 	}
+	findings = append(findings, rules.EvaluateNamespaces(loaded.Namespaces)...)
 
 	if options.policyJSON != "" {
 		imported, err := policyreport.Load(options.policyJSON, policyreport.DefaultLimits())
@@ -347,6 +370,7 @@ func runScan(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		ToolVersion:   version,
 		Ruleset:       &rulesetReference,
 		Assessment:    &assessment,
+		Scopes:        scopeAssessments,
 		Inputs:        loaded.Inputs,
 		Findings:      findings,
 		Suppressed:    suppressed,
@@ -412,6 +436,7 @@ func parseScanOptions(args []string) (scanOptions, bool, error) {
 		"--kubeconfig":         &options.kubeconfig,
 		"--context":            &options.context,
 		"--namespace":          &options.namespace,
+		"--cluster-scopes":     &options.scopes,
 	}
 
 	for index := 0; index < len(args); index++ {
@@ -486,6 +511,9 @@ func parseScanOptions(args []string) (scanOptions, bool, error) {
 	}
 	if options.kubeconfig == "" && (options.context != "" || options.namespace != "") {
 		return options, false, fmt.Errorf("--context and --namespace require --kubeconfig")
+	}
+	if options.scopes != "" && options.kubeconfig == "" {
+		return options, false, fmt.Errorf("--cluster-scopes requires --kubeconfig")
 	}
 	if options.kubeconfig != "" && (options.withTrivy || options.trivyJSON != "") {
 		return options, false, fmt.Errorf("trivy options are only supported for repository scans")
@@ -562,6 +590,8 @@ Flags:
   --kubeconfig PATH          Read workloads from the selected cluster
   --context NAME             Kubeconfig context (default current context)
   --namespace NAME           Scan one namespace (default all namespaces)
+  --cluster-scopes LIST      Comma-separated read scopes (default workloads;
+                             also: namespaces for PSA label assessment)
   -h, --help                 Show help
 
 Use - to read bounded multi-document YAML or JSON from stdin, for example:

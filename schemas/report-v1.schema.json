@@ -29,6 +29,20 @@
         "workloads_assessed": { "type": "integer", "minimum": 0 }
       }
     },
+    "cluster_scopes": {
+      "description": "Added in v0.5 as an optional field; per-scope cluster collection outcomes. A denied or absent scope was not assessed.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["scope", "resources", "status"],
+        "properties": {
+          "scope": { "type": "string", "minLength": 1 },
+          "resources": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["collected", "denied", "absent"] },
+          "detail": { "type": "string" }
+        }
+      }
+    },
     "inputs": {
       "type": "array",
       "items": {

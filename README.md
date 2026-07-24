@@ -78,6 +78,11 @@ Read-only live cluster scan:
 ```bash
 clusterproof scan --kubeconfig "$HOME/.kube/config"
 
+# Add the namespaces scope to assess Pod Security Admission labels:
+clusterproof scan \
+  --kubeconfig "$HOME/.kube/config" \
+  --cluster-scopes workloads,namespaces
+
 # Pin both context and namespace:
 clusterproof scan \
   --kubeconfig "$HOME/.kube/config" \
@@ -93,6 +98,13 @@ to all namespaces and the kubeconfig's current context. It never requests
 Secrets, ConfigMaps, logs, events, or mutation. The caller needs `list` access to
 the selected workload resources; permissions can be checked with
 `kubectl auth can-i list RESOURCE` for each resource type and scope.
+
+Each scope in `--cluster-scopes` is one fixed, versioned read: `workloads`
+is the default snapshot above and `namespaces` reads Namespace metadata
+only, for Pod Security Admission label assessment. When the caller lacks
+`list` permission for a scope, the scan continues and records the scope as
+`denied` in the report's `cluster_scopes` field — missing permission is
+reported as a partial assessment, never as a clean result.
 
 Use only a kubeconfig you trust. Kubernetes kubeconfigs can define executable
 credential plugins, which `kubectl` may run while authenticating. ClusterProof

@@ -70,12 +70,13 @@ func Load(root string, limits Limits) (Result, error) {
 			Bytes:  int64(len(data)),
 		})
 
-		workloads, count, err := decodeFile(path, data, documents, limits)
+		workloads, namespaces, count, err := decodeFileFull(path, data, documents, limits)
 		if err != nil {
 			return Result{}, err
 		}
 		documents += count
 		result.Workloads = append(result.Workloads, workloads...)
+		result.Namespaces = append(result.Namespaces, namespaces...)
 	}
 	return result, nil
 }
@@ -96,7 +97,7 @@ func LoadBytes(source string, data []byte, limits Limits) (Result, error) {
 	}
 
 	sum := sha256.Sum256(data)
-	workloads, _, err := decodeFile(source, data, 0, limits)
+	workloads, namespaces, _, err := decodeFileFull(source, data, 0, limits)
 	if err != nil {
 		return Result{}, err
 	}
@@ -106,7 +107,8 @@ func LoadBytes(source string, data []byte, limits Limits) (Result, error) {
 			SHA256: hex.EncodeToString(sum[:]),
 			Bytes:  int64(len(data)),
 		}},
-		Workloads: workloads,
+		Workloads:  workloads,
+		Namespaces: namespaces,
 	}, nil
 }
 
@@ -185,9 +187,10 @@ func readBounded(path string, maxBytes int64) ([]byte, error) {
 	return data, nil
 }
 
-func decodeFile(path string, data []byte, priorDocuments int, limits Limits) ([]Workload, int, error) {
+func decodeFileFull(path string, data []byte, priorDocuments int, limits Limits) ([]Workload, []Namespace, int, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	var workloads []Workload
+	var namespaces []Namespace
 	documents := 0
 
 	for {
@@ -197,40 +200,62 @@ func decodeFile(path string, data []byte, priorDocuments int, limits Limits) ([]
 			break
 		}
 		if err != nil {
-			return nil, documents, fmt.Errorf("decode manifest %q document %d: %w", path, documents+1, err)
+			return nil, nil, documents, fmt.Errorf("decode manifest %q document %d: %w", path, documents+1, err)
 		}
 		if len(document.Content) == 0 {
 			continue
 		}
 		documents++
 		if priorDocuments+documents > limits.MaxDocuments {
-			return nil, documents, fmt.Errorf("manifest input exceeds document limit of %d", limits.MaxDocuments)
+			return nil, nil, documents, fmt.Errorf("manifest input exceeds document limit of %d", limits.MaxDocuments)
 		}
 		if err := validateNode(&document, limits); err != nil {
-			return nil, documents, fmt.Errorf("validate manifest %q document %d: %w", path, documents, err)
+			return nil, nil, documents, fmt.Errorf("validate manifest %q document %d: %w", path, documents, err)
 		}
 
 		var resource rawResource
 		if err := document.Decode(&resource); err != nil {
-			return nil, documents, fmt.Errorf("normalize manifest %q document %d: %w", path, documents, err)
+			return nil, nil, documents, fmt.Errorf("normalize manifest %q document %d: %w", path, documents, err)
 		}
-		workloads = append(workloads, normalizeResource(resource, path, documents, document.Content[0].Line)...)
+		newWorkloads, newNamespaces := normalizeResourceFull(resource, path, documents, document.Content[0].Line)
+		workloads = append(workloads, newWorkloads...)
+		namespaces = append(namespaces, newNamespaces...)
 	}
-	return workloads, documents, nil
+	return workloads, namespaces, documents, nil
 }
 
-func normalizeResource(resource rawResource, path string, document, line int) []Workload {
+func normalizeResourceFull(resource rawResource, path string, document, line int) ([]Workload, []Namespace) {
 	if resource.Kind == "List" {
 		var workloads []Workload
+		var namespaces []Namespace
 		for _, item := range resource.Items {
-			workloads = append(workloads, normalizeResource(item, path, document, line)...)
+			newWorkloads, newNamespaces := normalizeResourceFull(item, path, document, line)
+			workloads = append(workloads, newWorkloads...)
+			namespaces = append(namespaces, newNamespaces...)
 		}
-		return workloads
+		return workloads, namespaces
+	}
+
+	if resource.Kind == "Namespace" {
+		labels := make(map[string]string, len(resource.Metadata.Labels))
+		for key, value := range resource.Metadata.Labels {
+			labels[key] = value
+		}
+		return nil, []Namespace{{
+			Name:   resource.Metadata.Name,
+			Labels: labels,
+			Location: model.Location{
+				Path:     path,
+				Document: document,
+				Line:     line,
+				Resource: "Namespace/" + resource.Metadata.Name,
+			},
+		}}
 	}
 
 	podSpec, ok := resource.podSpec()
 	if !ok {
-		return nil
+		return nil, nil
 	}
 	return []Workload{{
 		APIVersion: resource.APIVersion,
@@ -245,7 +270,7 @@ func normalizeResource(resource rawResource, path string, document, line int) []
 			Resource: resource.Kind + "/" + resource.Metadata.Name,
 		},
 		PodSpec: podSpec,
-	}}
+	}}, nil
 }
 
 func ownerKinds(references []rawOwnerReference) []string {
@@ -297,6 +322,7 @@ type rawResource struct {
 type rawMetadata struct {
 	Name            string              `yaml:"name"`
 	Namespace       string              `yaml:"namespace"`
+	Labels          map[string]string   `yaml:"labels"`
 	OwnerReferences []rawOwnerReference `yaml:"ownerReferences"`
 }
 

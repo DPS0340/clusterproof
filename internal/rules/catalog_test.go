@@ -51,6 +51,7 @@ func TestDefaultCatalogCoversEveryNativeFinding(t *testing.T) {
 	}
 
 	findings := Evaluate(workload)
+	findings = append(findings, EvaluateNamespaces(allPSAViolationsNamespaces())...)
 	emitted := make([]string, 0, len(findings))
 	for _, finding := range findings {
 		emitted = append(emitted, finding.ID)
@@ -82,6 +83,41 @@ func TestDefaultCatalogCoversEveryNativeFinding(t *testing.T) {
 		if definition.Description != finding.Description || definition.Remediation != finding.Remediation {
 			t.Fatalf("catalog description/remediation drift for %s", finding.ID)
 		}
+	}
+}
+
+// allPSAViolationsNamespaces triggers every namespace-admission rule exactly
+// once across four namespaces, because several PSA states are mutually
+// exclusive on a single namespace.
+func allPSAViolationsNamespaces() []manifest.Namespace {
+	return []manifest.Namespace{
+		{
+			Name: "no-enforce",
+			Labels: map[string]string{
+				"pod-security.kubernetes.io/enforce-version": "v1.36",
+			},
+		},
+		{
+			Name: "bogus-level",
+			Labels: map[string]string{
+				"pod-security.kubernetes.io/enforce":         "unrestricted",
+				"pod-security.kubernetes.io/enforce-version": "v1.36",
+			},
+		},
+		{
+			Name: "privileged-level",
+			Labels: map[string]string{
+				"pod-security.kubernetes.io/enforce":         "privileged",
+				"pod-security.kubernetes.io/enforce-version": "v1.36",
+			},
+		},
+		{
+			Name: "weak-audit",
+			Labels: map[string]string{
+				"pod-security.kubernetes.io/enforce": "restricted",
+				"pod-security.kubernetes.io/audit":   "baseline",
+			},
+		},
 	}
 }
 
@@ -265,6 +301,9 @@ func TestCatalogOSMetadataMatchesRuleGating(t *testing.T) {
 		emitted[finding.ID] = true
 	}
 	for _, rule := range catalog.Rules {
+		if rule.Category == "namespace-admission" {
+			continue // namespace rules are evaluated against Namespace metadata, not workloads
+		}
 		if emitted[rule.ID] && !windowsApplicable[rule.ID] {
 			t.Fatalf("rule %s emitted on windows but cataloged Linux-only", rule.ID)
 		}
