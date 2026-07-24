@@ -453,13 +453,13 @@ to exact registry digests.
 trust policy.
 
 **Acceptance criteria:**
-- [ ] Verification binds the signature payload to the exact image digest.
-- [ ] Online lookup is opt-in; an offline bundle never triggers hidden network access.
-- [ ] Wrong identity, issuer, key, digest, expiry, or transparency proof fails.
+- [x] Verification binds the signature payload to the exact image digest.
+- [x] Online lookup is opt-in; an offline bundle never triggers hidden network access.
+- [x] Wrong identity, issuer, key, digest, expiry, or transparency proof fails.
 
 **Verification:**
-- [ ] Hermetic fixtures cover key, keyless, offline, malformed, and timeout paths.
-- [ ] Any subprocess uses fixed arguments, no shell, and bounded stdout/stderr.
+- [x] Hermetic fixtures cover key, keyless, offline, malformed, and timeout paths.
+- [x] Any subprocess uses fixed arguments, no shell, and bounded stdout/stderr.
 
 **Dependencies:** Tasks 34-35
 **Files likely touched:** `internal/sigstore/*`, `internal/model/*`, `cmd/clusterproof/*`, `docs/*`
@@ -471,13 +471,13 @@ trust policy.
 expectations against the resolved artifact.
 
 **Acceptance criteria:**
-- [ ] The subject digest must match the resolved image digest.
-- [ ] Builder, source repository, and predicate type are checked only against explicit policy.
-- [ ] Unsupported SLSA versions or incomplete statements fail as not verified.
+- [x] The subject digest must match the resolved image digest.
+- [x] Builder, source repository, and predicate type are checked only against explicit policy.
+- [x] Unsupported SLSA versions or incomplete statements fail as not verified.
 
 **Verification:**
-- [ ] Tests cover valid provenance, wrong subject/builder/source, and oversized statements.
-- [ ] Findings distinguish missing, invalid, and policy-mismatched provenance.
+- [x] Tests cover valid provenance, wrong subject/builder/source, and oversized statements.
+- [x] Findings distinguish missing, invalid, and policy-mismatched provenance.
 
 **Dependencies:** Tasks 34-36
 **Files likely touched:** `internal/slsa/*`, `internal/model/*`, `cmd/clusterproof/*`, `docs/*`
