@@ -146,6 +146,12 @@ func VerifyBundle(directory string) error {
 }
 
 func verifyBundle(directory string, limits verifyLimits) error {
+	return verifyBundleExtra(directory, limits, nil)
+}
+
+// verifyBundleExtra verifies a bundle while tolerating the named extra
+// files, which must still be regular non-symlink files.
+func verifyBundleExtra(directory string, limits verifyLimits, allowedExtra map[string]struct{}) error {
 	if limits.MaxManifestBytes <= 0 || limits.MaxFiles <= 0 ||
 		limits.MaxFileBytes <= 0 || limits.MaxTotalBytes <= 0 {
 		return fmt.Errorf("all evidence verification limits must be positive")
@@ -207,11 +213,23 @@ func verifyBundle(directory string, limits verifyLimits) error {
 	if err != nil {
 		return fmt.Errorf("read evidence directory: %w", err)
 	}
-	if len(entries) != len(expected)+1 {
+	extraSeen := 0
+	for _, entry := range entries {
+		if _, allowed := allowedExtra[entry.Name()]; allowed {
+			extraSeen++
+		}
+	}
+	if len(entries) != len(expected)+1+extraSeen {
 		return fmt.Errorf("evidence directory contains an unexpected number of files")
 	}
 	for _, entry := range entries {
 		if entry.Name() == "bundle-manifest.json" {
+			continue
+		}
+		if _, allowed := allowedExtra[entry.Name()]; allowed {
+			if entry.Type()&os.ModeSymlink != 0 || !entry.Type().IsRegular() {
+				return fmt.Errorf("evidence file %q is not regular", entry.Name())
+			}
 			continue
 		}
 		if _, exists := expected[entry.Name()]; !exists {

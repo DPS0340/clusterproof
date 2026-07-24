@@ -389,16 +389,117 @@ func runEvidence(args []string, stdout, stderr io.Writer) int {
 		printEvidenceUsage(stdout)
 		return 0
 	}
-	if len(args) != 2 || args[0] != "verify" {
-		fmt.Fprintln(stderr, "clusterproof: evidence requires: verify DIR")
+	if len(args) < 2 {
+		fmt.Fprintln(stderr, "clusterproof: evidence requires: verify DIR or sign DIR")
 		printEvidenceUsage(stderr)
 		return 1
 	}
-	if err := evidence.VerifyBundle(args[1]); err != nil {
+	switch args[0] {
+	case "verify":
+		return runEvidenceVerify(args[1:], stdout, stderr)
+	case "sign":
+		return runEvidenceSign(args[1:], stdout, stderr)
+	default:
+		fmt.Fprintf(stderr, "clusterproof: unknown evidence command %q\n", args[0])
+		printEvidenceUsage(stderr)
+		return 1
+	}
+}
+
+func runEvidenceVerify(args []string, stdout, stderr io.Writer) int {
+	var directory, signerKey string
+	for index := 0; index < len(args); index++ {
+		current := args[index]
+		switch {
+		case current == "--signer-key":
+			if index+1 >= len(args) {
+				fmt.Fprintln(stderr, "clusterproof: --signer-key requires a value")
+				return 1
+			}
+			signerKey = args[index+1]
+			index++
+		case strings.HasPrefix(current, "--signer-key="):
+			signerKey = strings.TrimPrefix(current, "--signer-key=")
+		case strings.HasPrefix(current, "-"):
+			fmt.Fprintf(stderr, "clusterproof: unknown evidence verify flag %q\n", current)
+			return 1
+		default:
+			if directory != "" {
+				fmt.Fprintln(stderr, "clusterproof: evidence verify accepts exactly one directory")
+				return 1
+			}
+			directory = current
+		}
+	}
+	if directory == "" {
+		fmt.Fprintln(stderr, "clusterproof: evidence verify requires a directory")
+		return 1
+	}
+
+	state, signer, err := evidence.VerifySignedBundle(directory, signerKey)
+	if err != nil {
 		fmt.Fprintf(stderr, "clusterproof: verify evidence: %v\n", err)
 		return 1
 	}
-	fmt.Fprintln(stdout, "evidence bundle verified")
+	switch state {
+	case evidence.StateSignatureVerified:
+		fmt.Fprintf(stdout, "evidence bundle verified: integrity and signature (signer: %s)\n", signer)
+	case evidence.StateIntegrityVerified:
+		if signer != "" {
+			fmt.Fprintf(stdout, "evidence bundle verified: integrity only (signature by %q present but no --signer-key pinned; authenticity not verified)\n", signer)
+		} else {
+			fmt.Fprintln(stdout, "evidence bundle verified: integrity only (unsigned)")
+		}
+	default:
+		fmt.Fprintln(stderr, "clusterproof: evidence bundle unverified")
+		return 1
+	}
+	return 0
+}
+
+func runEvidenceSign(args []string, stdout, stderr io.Writer) int {
+	var directory, keyPath, signerID string
+	for index := 0; index < len(args); index++ {
+		current := args[index]
+		switch {
+		case current == "--key":
+			if index+1 >= len(args) {
+				fmt.Fprintln(stderr, "clusterproof: --key requires a value")
+				return 1
+			}
+			keyPath = args[index+1]
+			index++
+		case strings.HasPrefix(current, "--key="):
+			keyPath = strings.TrimPrefix(current, "--key=")
+		case current == "--signer":
+			if index+1 >= len(args) {
+				fmt.Fprintln(stderr, "clusterproof: --signer requires a value")
+				return 1
+			}
+			signerID = args[index+1]
+			index++
+		case strings.HasPrefix(current, "--signer="):
+			signerID = strings.TrimPrefix(current, "--signer=")
+		case strings.HasPrefix(current, "-"):
+			fmt.Fprintf(stderr, "clusterproof: unknown evidence sign flag %q\n", current)
+			return 1
+		default:
+			if directory != "" {
+				fmt.Fprintln(stderr, "clusterproof: evidence sign accepts exactly one directory")
+				return 1
+			}
+			directory = current
+		}
+	}
+	if directory == "" || keyPath == "" || signerID == "" {
+		fmt.Fprintln(stderr, "clusterproof: evidence sign requires DIR, --key KEY_PATH, and --signer IDENTITY")
+		return 1
+	}
+	if err := evidence.SignBundle(directory, keyPath, signerID); err != nil {
+		fmt.Fprintf(stderr, "clusterproof: sign evidence: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "evidence bundle signed by %s\n", signerID)
 	return 0
 }
 
@@ -894,9 +995,14 @@ ClusterProof never executes a renderer; pipe already-rendered manifests.`)
 
 func printEvidenceUsage(writer io.Writer) {
 	fmt.Fprintln(writer, `Usage:
-  clusterproof evidence verify DIR
+  clusterproof evidence verify DIR [--signer-key PUBLIC_KEY_PEM]
+  clusterproof evidence sign DIR --key PRIVATE_KEY_PEM --signer IDENTITY
 
-Verifies the exact file set, byte sizes, and SHA-256 hashes in an evidence bundle.`)
+Verify checks the exact file set, byte sizes, and SHA-256 hashes; with
+--signer-key it additionally verifies the manifest signature against the
+pinned public key and reports integrity and authenticity separately.
+Sign adds a detached Ed25519 signature over the bundle manifest using a
+caller-provided PKCS#8 private key; ClusterProof never stores keys.`)
 }
 
 func printRulesetUsage(writer io.Writer) {

@@ -168,7 +168,7 @@ control-plane implementation must not begin before Task 41 is complete.
 - [x] Task 36: Verify Sigstore signatures with pinned identities.
 - [x] Task 37: Verify SLSA v1.2 provenance against exact subjects.
 - [x] Task 38: Import bounded SPDX/CycloneDX SBOM and VEX data.
-- [ ] Task 39: Sign and authenticate evidence manifests.
+- [x] Task 39: Sign and authenticate evidence manifests.
 - [ ] Task 40: Abuse-test offline and networked modes and release v0.6.
 
 ### Checkpoint: Cryptographic evidence

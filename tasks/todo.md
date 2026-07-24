@@ -507,13 +507,13 @@ turning absence of a vulnerability record into proof of safety.
 manifest while retaining unsigned integrity verification.
 
 **Acceptance criteria:**
-- [ ] Output distinguishes integrity-verified, signature-verified, and unverified states.
-- [ ] Signing is explicit and does not make ClusterProof a private-key store.
-- [ ] Signer identity, issuer/key reference, algorithm, and verification time are recorded.
+- [x] Output distinguishes integrity-verified, signature-verified, and unverified states.
+- [x] Signing is explicit and does not make ClusterProof a private-key store.
+- [x] Signer identity, issuer/key reference, algorithm, and verification time are recorded.
 
 **Verification:**
-- [ ] Tests reject modified manifests, wrong signers, expired material, symlinks, and oversized signatures.
-- [ ] Offline verification succeeds with the complete required trust bundle.
+- [x] Tests reject modified manifests, wrong signers, expired material, symlinks, and oversized signatures.
+- [x] Offline verification succeeds with the complete required trust bundle.
 
 **Dependencies:** Tasks 34 and 36
 **Files likely touched:** `internal/evidence/*`, `internal/trust/*`, `cmd/clusterproof/*`, `docs/*`
