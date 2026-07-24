@@ -28,6 +28,18 @@ Human-readable local scan:
 clusterproof scan ./deploy
 ```
 
+Pipe rendered manifests from Helm or Kustomize without ClusterProof executing
+a renderer:
+
+```bash
+helm template ./chart | clusterproof scan -
+kustomize build ./overlays/production | clusterproof scan - --fail-on high
+```
+
+Stdin input is bounded by the same byte, document, node, and depth limits as
+file scans, and `-` cannot be combined with a repository path or a live
+cluster target.
+
 Read-only live cluster scan:
 
 ```bash

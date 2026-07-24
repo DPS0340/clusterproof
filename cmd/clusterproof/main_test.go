@@ -30,7 +30,7 @@ spec:
 	}
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"scan", root, "--format", "json", "--fail-on", "high"}, &stdout, &stderr)
+	code := run([]string{"scan", root, "--format", "json", "--fail-on", "high"}, strings.NewReader(""), &stdout, &stderr)
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2; stderr=%s", code, stderr.String())
 	}
@@ -73,7 +73,7 @@ spec:
 	evidence := filepath.Join(t.TempDir(), "evidence")
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"scan", "--evidence-dir", evidence, root}, &stdout, &stderr)
+	code := run([]string{"scan", "--evidence-dir", evidence, root}, strings.NewReader(""), &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0; stderr=%s", code, stderr.String())
 	}
@@ -83,7 +83,7 @@ spec:
 
 	stdout.Reset()
 	stderr.Reset()
-	code = run([]string{"evidence", "verify", evidence}, &stdout, &stderr)
+	code = run([]string{"evidence", "verify", evidence}, strings.NewReader(""), &stdout, &stderr)
 	if code != 0 || !strings.Contains(stdout.String(), "verified") {
 		t.Fatalf("verify code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -93,7 +93,7 @@ spec:
 	}
 	stdout.Reset()
 	stderr.Reset()
-	code = run([]string{"evidence", "verify", evidence}, &stdout, &stderr)
+	code = run([]string{"evidence", "verify", evidence}, strings.NewReader(""), &stdout, &stderr)
 	if code != 1 {
 		t.Fatalf("tampered verify code = %d, want 1", code)
 	}
@@ -134,7 +134,7 @@ items:
 		"--namespace", "payments",
 		"--format", "json",
 		"--fail-on", "high",
-	}, &stdout, &stderr)
+	}, strings.NewReader(""), &stdout, &stderr)
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2; stderr=%s", code, stderr.String())
 	}
@@ -160,6 +160,10 @@ func TestParseScanOptionsRequiresExactlyOneTarget(t *testing.T) {
 	}{
 		{name: "neither", args: nil},
 		{name: "both", args: []string{"./deploy", "--kubeconfig", "/tmp/config"}},
+		{name: "stdin with path", args: []string{"-", "./deploy"}},
+		{name: "stdin with kubeconfig", args: []string{"-", "--kubeconfig", "/tmp/config"}},
+		{name: "stdin twice", args: []string{"-", "-"}},
+		{name: "stdin with local Trivy run", args: []string{"-", "--with-trivy"}},
 		{name: "context without cluster", args: []string{"./deploy", "--context", "production"}},
 		{name: "namespace without cluster", args: []string{"./deploy", "--namespace", "payments"}},
 		{name: "cluster with Trivy", args: []string{"--kubeconfig", "/tmp/config", "--with-trivy"}},
@@ -220,7 +224,7 @@ spec:
 		"scan", root,
 		"--policy-report-json", policyPath,
 		"--format", "json",
-	}, &stdout, &stderr)
+	}, strings.NewReader(""), &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0; stderr=%s", code, stderr.String())
 	}
@@ -241,7 +245,7 @@ spec:
 
 func TestRunRulesetShowJSON(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"ruleset", "show", "--format", "json"}, &stdout, &stderr)
+	code := run([]string{"ruleset", "show", "--format", "json"}, strings.NewReader(""), &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr=%s", code, stderr.String())
 	}
@@ -259,5 +263,82 @@ func TestRunRulesetShowJSON(t *testing.T) {
 		if len(rule.OS) == 0 {
 			t.Fatalf("rule %s does not declare applicable workload OS", rule.ID)
 		}
+	}
+}
+
+func TestRunScanReadsBoundedStdin(t *testing.T) {
+	stream := `apiVersion: v1
+kind: Pod
+metadata: {name: piped}
+spec:
+  containers:
+    - name: app
+      image: example/app:latest
+      securityContext: {privileged: true}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: second}
+spec:
+  containers:
+    - name: app
+      image: example/app:latest
+`
+	var stdout, stderr bytes.Buffer
+	code := run(
+		[]string{"scan", "-", "--format", "json", "--fail-on", "high"},
+		strings.NewReader(stream), &stdout, &stderr,
+	)
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2; stderr=%s", code, stderr.String())
+	}
+	var scan model.Report
+	if err := json.Unmarshal(stdout.Bytes(), &scan); err != nil {
+		t.Fatalf("invalid JSON output: %v\n%s", err, stdout.String())
+	}
+	if scan.Target != "stdin" {
+		t.Fatalf("target = %q, want stdin", scan.Target)
+	}
+	if len(scan.Inputs) != 1 || scan.Inputs[0].Path != "stdin" || scan.Inputs[0].SHA256 == "" {
+		t.Fatalf("stdin input inventory missing: %#v", scan.Inputs)
+	}
+	if scan.Summary.Critical == 0 {
+		t.Fatalf("expected privileged finding from piped manifest: %#v", scan.Summary)
+	}
+	targets := make(map[string]bool)
+	for _, finding := range scan.Findings {
+		targets[finding.Target] = true
+	}
+	if !targets["default/Pod/piped"] || !targets["default/Pod/second"] {
+		t.Fatalf("multi-document stream was not fully evaluated: %#v", targets)
+	}
+}
+
+func TestRunScanStdinRejectsEmptyAndMalformedInput(t *testing.T) {
+	tests := []struct {
+		name   string
+		stream string
+	}{
+		{name: "empty", stream: ""},
+		{name: "whitespace only", stream: "   \n\t\n"},
+		{name: "malformed YAML", stream: "{unclosed"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := run([]string{"scan", "-"}, strings.NewReader(test.stream), &stdout, &stderr)
+			if code != 1 {
+				t.Fatalf("exit code = %d, want 1; stderr=%s", code, stderr.String())
+			}
+		})
+	}
+}
+
+func TestRunScanStdinRejectsOversizedStream(t *testing.T) {
+	oversized := strings.Repeat("#", (5<<20)+1)
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"scan", "-"}, strings.NewReader(oversized), &stdout, &stderr)
+	if code != 1 || !strings.Contains(stderr.String(), "exceeds limit") {
+		t.Fatalf("exit code = %d, stderr = %q; want limit failure", code, stderr.String())
 	}
 }

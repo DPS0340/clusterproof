@@ -27,6 +27,7 @@ var kubectlExecutable = "kubectl"
 
 type scanOptions struct {
 	target      string
+	stdin       bool
 	kubeconfig  string
 	context     string
 	namespace   string
@@ -40,10 +41,10 @@ type scanOptions struct {
 }
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
 
-func run(args []string, stdout, stderr io.Writer) int {
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		printUsage(stderr)
 		return 1
@@ -56,7 +57,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		printUsage(stdout)
 		return 0
 	case "scan":
-		return runScan(args[1:], stdout, stderr)
+		return runScan(args[1:], stdin, stdout, stderr)
 	case "evidence":
 		return runEvidence(args[1:], stdout, stderr)
 	case "ruleset":
@@ -161,7 +162,7 @@ func runRuleset(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func runScan(args []string, stdout, stderr io.Writer) int {
+func runScan(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	options, help, err := parseScanOptions(args)
 	if err != nil {
 		fmt.Fprintf(stderr, "clusterproof: %v\n", err)
@@ -174,7 +175,29 @@ func runScan(args []string, stdout, stderr io.Writer) int {
 
 	var loaded manifest.Result
 	scanTarget := options.target
-	if options.kubeconfig != "" {
+	switch {
+	case options.stdin:
+		limits := manifest.DefaultLimits()
+		data, readErr := io.ReadAll(io.LimitReader(stdin, limits.MaxFileBytes+1))
+		if readErr != nil {
+			fmt.Fprintf(stderr, "clusterproof: read stdin: %v\n", readErr)
+			return 1
+		}
+		if int64(len(data)) > limits.MaxFileBytes {
+			fmt.Fprintf(stderr, "clusterproof: stdin exceeds limit of %d bytes\n", limits.MaxFileBytes)
+			return 1
+		}
+		if len(bytes.TrimSpace(data)) == 0 {
+			fmt.Fprintln(stderr, "clusterproof: stdin is empty; pipe rendered YAML or JSON manifests")
+			return 1
+		}
+		loaded, err = manifest.LoadBytes("stdin", data, limits)
+		if err != nil {
+			fmt.Fprintf(stderr, "clusterproof: load stdin manifests: %v\n", err)
+			return 1
+		}
+		scanTarget = "stdin"
+	case options.kubeconfig != "":
 		clusterOptions := cluster.DefaultOptions()
 		clusterOptions.Executable = kubectlExecutable
 		clusterOptions.Kubeconfig = options.kubeconfig
@@ -186,7 +209,7 @@ func runScan(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		scanTarget = loaded.Inputs[0].Path
-	} else {
+	default:
 		loaded, err = manifest.Load(options.target, manifest.DefaultLimits())
 		if err != nil {
 			fmt.Fprintf(stderr, "clusterproof: load manifests: %v\n", err)
@@ -325,6 +348,13 @@ func parseScanOptions(args []string) (scanOptions, bool, error) {
 			index++
 			continue
 		}
+		if current == "-" {
+			if options.stdin {
+				return options, false, fmt.Errorf("stdin target - is accepted only once")
+			}
+			options.stdin = true
+			continue
+		}
 
 		matched := false
 		for name, destination := range valueFlags {
@@ -355,17 +385,30 @@ func parseScanOptions(args []string) (scanOptions, bool, error) {
 		options.target = current
 	}
 
-	if options.target == "" && options.kubeconfig == "" {
-		return options, false, fmt.Errorf("scan path or --kubeconfig is required")
+	targets := 0
+	if options.target != "" {
+		targets++
 	}
-	if options.target != "" && options.kubeconfig != "" {
-		return options, false, fmt.Errorf("scan path and --kubeconfig cannot be combined")
+	if options.kubeconfig != "" {
+		targets++
+	}
+	if options.stdin {
+		targets++
+	}
+	if targets == 0 {
+		return options, false, fmt.Errorf("scan path, -, or --kubeconfig is required")
+	}
+	if targets > 1 {
+		return options, false, fmt.Errorf("scan path, -, and --kubeconfig are mutually exclusive")
 	}
 	if options.kubeconfig == "" && (options.context != "" || options.namespace != "") {
 		return options, false, fmt.Errorf("--context and --namespace require --kubeconfig")
 	}
 	if options.kubeconfig != "" && (options.withTrivy || options.trivyJSON != "") {
 		return options, false, fmt.Errorf("trivy options are only supported for repository scans")
+	}
+	if options.stdin && options.withTrivy {
+		return options, false, fmt.Errorf("--with-trivy requires a repository path")
 	}
 	if options.trivyJSON != "" && options.withTrivy {
 		return options, false, fmt.Errorf("--trivy-json and --with-trivy cannot be combined")
@@ -420,6 +463,7 @@ Run "clusterproof scan --help" for scan flags.`)
 func printScanUsage(writer io.Writer) {
 	fmt.Fprintln(writer, `Usage:
   kubectl clusterproof scan [flags] PATH
+  kubectl clusterproof scan [flags] -
   kubectl clusterproof scan [flags] --kubeconfig PATH
 
 Flags:
@@ -433,7 +477,11 @@ Flags:
   --kubeconfig PATH          Read workloads from the selected cluster
   --context NAME             Kubeconfig context (default current context)
   --namespace NAME           Scan one namespace (default all namespaces)
-  -h, --help                 Show help`)
+  -h, --help                 Show help
+
+Use - to read bounded multi-document YAML or JSON from stdin, for example:
+  helm template ./chart | clusterproof scan -
+ClusterProof never executes a renderer; pipe already-rendered manifests.`)
 }
 
 func printEvidenceUsage(writer io.Writer) {
