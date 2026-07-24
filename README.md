@@ -40,6 +40,29 @@ Stdin input is bounded by the same byte, document, node, and depth limits as
 file scans, and `-` cannot be combined with a repository path or a live
 cluster target.
 
+Suppress a reviewed finding with a repository-owned exception file:
+
+```bash
+clusterproof scan ./deploy --exceptions .clusterproof-exceptions.yaml
+```
+
+```yaml
+# .clusterproof-exceptions.yaml
+schema_version: "1"
+exceptions:
+  - rule: CP-K8S-010
+    target: payments/Deployment/api
+    owner: team-payments
+    reason: Workload calls the Kubernetes API; reviewed 2026-07.
+    expires: "2026-12-31"
+```
+
+Every exception requires an exact rule and target, an owner, a reason, and a
+UTC expiry date. Expired or malformed entries never suppress findings — a
+malformed file fails the whole scan. Suppressed finding identities stay in
+the report under `suppressed_findings`, so evidence never hides what was
+waived or by whom.
+
 Read-only live cluster scan:
 
 ```bash

@@ -53,6 +53,16 @@ func Table(writer io.Writer, report model.Report) error {
 		report.Summary.Low,
 		report.Summary.Info,
 	)
+	if err != nil {
+		return err
+	}
+	if len(report.Suppressed) > 0 {
+		_, err = fmt.Fprintf(
+			writer,
+			"Suppressed by reviewed exceptions: %d (identities recorded in the report)\n",
+			len(report.Suppressed),
+		)
+	}
 	return err
 }
 

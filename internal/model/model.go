@@ -77,6 +77,18 @@ type Input struct {
 	Bytes  int64  `json:"bytes"`
 }
 
+// SuppressedFinding records the identity of a finding suppressed by a
+// reviewed repository exception, without hiding it from evidence.
+type SuppressedFinding struct {
+	RuleID   string   `json:"rule"`
+	Severity Severity `json:"severity"`
+	Target   string   `json:"target"`
+	Owner    string   `json:"owner"`
+	Reason   string   `json:"reason"`
+	Expires  string   `json:"expires"`
+	Location Location `json:"location"`
+}
+
 // Summary contains deterministic severity totals.
 type Summary struct {
 	Critical int `json:"critical"`
@@ -102,7 +114,11 @@ type Report struct {
 	Ruleset       *RulesetReference `json:"ruleset,omitempty"`
 	Inputs        []Input           `json:"inputs"`
 	Findings      []Finding         `json:"findings"`
-	Summary       Summary           `json:"summary"`
+	// Suppressed lists findings hidden by reviewed repository exceptions.
+	// The field is additive and omitted when no exception file is used, so
+	// existing schema-version 1 consumers continue to decode reports.
+	Suppressed []SuppressedFinding `json:"suppressed_findings,omitempty"`
+	Summary    Summary             `json:"summary"`
 }
 
 // Summarize counts findings by severity.

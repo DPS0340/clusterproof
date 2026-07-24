@@ -342,3 +342,128 @@ func TestRunScanStdinRejectsOversizedStream(t *testing.T) {
 		t.Fatalf("exit code = %d, stderr = %q; want limit failure", code, stderr.String())
 	}
 }
+
+func TestRunScanAppliesRepositoryExceptions(t *testing.T) {
+	root := t.TempDir()
+	manifest := `
+apiVersion: v1
+kind: Pod
+metadata: {name: tokened, namespace: payments}
+spec:
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile: {type: RuntimeDefault}
+  containers:
+    - name: app
+      image: example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        readOnlyRootFilesystem: true
+        capabilities: {drop: [ALL]}
+`
+	if err := os.WriteFile(filepath.Join(root, "pod.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	exceptions := `schema_version: "1"
+exceptions:
+  - rule: CP-K8S-010
+    target: payments/Pod/tokened
+    owner: team-payments
+    reason: Workload calls the Kubernetes API; reviewed.
+    expires: "2999-12-31"
+`
+	exceptionPath := filepath.Join(t.TempDir(), "exceptions.yaml")
+	if err := os.WriteFile(exceptionPath, []byte(exceptions), 0o600); err != nil {
+		t.Fatalf("write exceptions: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"scan", root,
+		"--exceptions", exceptionPath,
+		"--format", "json",
+		"--fail-on", "medium",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; stderr=%s", code, stderr.String())
+	}
+	var scan model.Report
+	if err := json.Unmarshal(stdout.Bytes(), &scan); err != nil {
+		t.Fatalf("invalid JSON output: %v\n%s", err, stdout.String())
+	}
+	if len(scan.Findings) != 0 {
+		t.Fatalf("findings remain after exception: %#v", scan.Findings)
+	}
+	if len(scan.Suppressed) != 1 || scan.Suppressed[0].RuleID != "CP-K8S-010" ||
+		scan.Suppressed[0].Owner != "team-payments" {
+		t.Fatalf("suppressed identity missing: %#v", scan.Suppressed)
+	}
+	if scan.Summary.Medium != 0 {
+		t.Fatalf("summary counts suppressed findings: %#v", scan.Summary)
+	}
+}
+
+func TestRunScanExpiredExceptionKeepsFinding(t *testing.T) {
+	root := t.TempDir()
+	manifest := `
+apiVersion: v1
+kind: Pod
+metadata: {name: tokened, namespace: payments}
+spec:
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile: {type: RuntimeDefault}
+  containers:
+    - name: app
+      image: example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        readOnlyRootFilesystem: true
+        capabilities: {drop: [ALL]}
+`
+	if err := os.WriteFile(filepath.Join(root, "pod.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	exceptions := `schema_version: "1"
+exceptions:
+  - rule: CP-K8S-010
+    target: payments/Pod/tokened
+    owner: team-payments
+    reason: Reviewed long ago.
+    expires: "2020-01-01"
+`
+	exceptionPath := filepath.Join(t.TempDir(), "exceptions.yaml")
+	if err := os.WriteFile(exceptionPath, []byte(exceptions), 0o600); err != nil {
+		t.Fatalf("write exceptions: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"scan", root,
+		"--exceptions", exceptionPath,
+		"--format", "json",
+		"--fail-on", "medium",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2; expired exception must not suppress", code)
+	}
+}
+
+func TestRunScanMalformedExceptionFileFailsClosed(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "pod.yaml"), []byte("apiVersion: v1\nkind: Pod\nmetadata: {name: p}\nspec: {containers: [{name: a, image: i:latest}]}\n"), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	exceptionPath := filepath.Join(t.TempDir(), "exceptions.yaml")
+	if err := os.WriteFile(exceptionPath, []byte("{unclosed"), 0o600); err != nil {
+		t.Fatalf("write exceptions: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"scan", root, "--exceptions", exceptionPath}, strings.NewReader(""), &stdout, &stderr)
+	if code != 1 || !strings.Contains(stderr.String(), "load exceptions") {
+		t.Fatalf("exit code = %d, stderr = %q; malformed exception file must fail the scan", code, stderr.String())
+	}
+}
