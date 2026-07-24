@@ -363,13 +363,13 @@ resources while documenting CNI-dependent limitations.
 history in a service.
 
 **Acceptance criteria:**
-- [ ] Output classifies new, resolved, unchanged, and severity-changed findings.
-- [ ] Incompatible schema/ruleset versions fail with a migration-oriented error.
-- [ ] Comparison is deterministic and contains both input hashes.
+- [x] Output classifies new, resolved, unchanged, and severity-changed findings.
+- [x] Incompatible schema/ruleset versions fail with a migration-oriented error.
+- [x] Comparison is deterministic and contains both input hashes.
 
 **Verification:**
-- [ ] Tests cover ordering, duplicates, changed locations, and incompatible inputs.
-- [ ] `clusterproof compare BEFORE AFTER` works for JSON and evidence directories.
+- [x] Tests cover ordering, duplicates, changed locations, and incompatible inputs.
+- [x] `clusterproof compare BEFORE AFTER` works for JSON and evidence directories.
 
 **Dependencies:** Tasks 24 and 27
 **Files likely touched:** `internal/compare/*`, `internal/model/*`, `cmd/clusterproof/*`, `docs/*`

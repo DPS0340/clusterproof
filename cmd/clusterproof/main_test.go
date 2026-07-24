@@ -663,3 +663,86 @@ func TestParseScanOptionsClusterScopesRequireKubeconfig(t *testing.T) {
 		t.Fatal("--cluster-scopes without --kubeconfig accepted")
 	}
 }
+
+func TestRunCompareDetectsChanges(t *testing.T) {
+	directory := t.TempDir()
+	root := t.TempDir()
+	insecure := `
+apiVersion: v1
+kind: Pod
+metadata: {name: risky}
+spec:
+  containers:
+    - name: app
+      image: example/app:latest
+      securityContext: {privileged: true}
+`
+	if err := os.WriteFile(filepath.Join(root, "pod.yaml"), []byte(insecure), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	beforePath := filepath.Join(directory, "before.json")
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"scan", root, "--format", "json", "--output", beforePath},
+		strings.NewReader(""), &stdout, &stderr); code != 0 {
+		t.Fatalf("before scan failed: %s", stderr.String())
+	}
+
+	// Fix the privileged setting for the after scan.
+	fixed := strings.Replace(insecure, "{privileged: true}", "{privileged: false}", 1)
+	if err := os.WriteFile(filepath.Join(root, "pod.yaml"), []byte(fixed), 0o600); err != nil {
+		t.Fatalf("update manifest: %v", err)
+	}
+	afterPath := filepath.Join(directory, "after.json")
+	stdout.Reset()
+	stderr.Reset()
+	if code := run([]string{"scan", root, "--format", "json", "--output", afterPath},
+		strings.NewReader(""), &stdout, &stderr); code != 0 {
+		t.Fatalf("after scan failed: %s", stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code := run([]string{"compare", "--format", "json", beforePath, afterPath},
+		strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0 for resolved-only diff; stderr=%s", code, stderr.String())
+	}
+	var result struct {
+		Resolved     []model.Finding `json:"resolved"`
+		New          []model.Finding `json:"new"`
+		BeforeSHA256 string          `json:"before_sha256"`
+		AfterSHA256  string          `json:"after_sha256"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("invalid comparison JSON: %v\n%s", err, stdout.String())
+	}
+	resolvedIDs := make(map[string]bool)
+	for _, finding := range result.Resolved {
+		resolvedIDs[finding.ID] = true
+	}
+	if !resolvedIDs["CP-K8S-001"] {
+		t.Fatalf("privileged fix not reported as resolved: %#v", result.Resolved)
+	}
+	if result.BeforeSHA256 == "" || result.AfterSHA256 == "" {
+		t.Fatal("comparison omits input hashes")
+	}
+
+	// Reversed order must exit 2: the privileged finding is new.
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"compare", afterPath, beforePath}, strings.NewReader(""), &stdout, &stderr)
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2 for new findings; stderr=%s", code, stderr.String())
+	}
+}
+
+func TestRunCompareRejectsBadArguments(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"compare", "only-one"}, strings.NewReader(""), &stdout, &stderr); code != 1 {
+		t.Fatalf("single path accepted: %d", code)
+	}
+	if code := run([]string{"compare", "a", "b", "--format", "xml"}, strings.NewReader(""), &stdout, &stderr); code != 1 {
+		t.Fatalf("bad format accepted: %d", code)
+	}
+}

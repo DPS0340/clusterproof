@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DPS0340/clusterproof/internal/cluster"
+	"github.com/DPS0340/clusterproof/internal/compare"
 	"github.com/DPS0340/clusterproof/internal/evidence"
 	"github.com/DPS0340/clusterproof/internal/exception"
 	"github.com/DPS0340/clusterproof/internal/manifest"
@@ -67,6 +68,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return runRuleset(args[1:], stdout, stderr)
 	case "explain":
 		return runExplain(args[1:], stdout, stderr)
+	case "compare":
+		return runCompare(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
 		printUsage(stderr)
@@ -122,6 +125,94 @@ func runExplain(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	return 0
+}
+
+func runCompare(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
+		printCompareUsage(stdout)
+		return 0
+	}
+	format := "table"
+	var paths []string
+	for index := 0; index < len(args); index++ {
+		current := args[index]
+		switch {
+		case current == "--format":
+			if index+1 >= len(args) {
+				fmt.Fprintln(stderr, "clusterproof: --format requires a value")
+				return 1
+			}
+			format = args[index+1]
+			index++
+		case strings.HasPrefix(current, "--format="):
+			format = strings.TrimPrefix(current, "--format=")
+		case strings.HasPrefix(current, "-") && current != "-":
+			fmt.Fprintf(stderr, "clusterproof: unknown compare flag %q\n", current)
+			return 1
+		default:
+			paths = append(paths, current)
+		}
+	}
+	if len(paths) != 2 {
+		fmt.Fprintln(stderr, "clusterproof: compare requires exactly BEFORE and AFTER paths")
+		printCompareUsage(stderr)
+		return 1
+	}
+	if format != "table" && format != "json" {
+		fmt.Fprintln(stderr, "clusterproof: compare format must be table or json")
+		return 1
+	}
+
+	result, err := compare.Files(paths[0], paths[1])
+	if err != nil {
+		fmt.Fprintf(stderr, "clusterproof: compare: %v\n", err)
+		return 1
+	}
+
+	if format == "json" {
+		encoder := json.NewEncoder(stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(result); err != nil {
+			fmt.Fprintf(stderr, "clusterproof: write comparison JSON: %v\n", err)
+			return 1
+		}
+	} else {
+		writer := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
+		fmt.Fprintln(writer, "CHANGE\tRULE\tTARGET\tCONTAINER\tSEVERITY")
+		for _, finding := range result.New {
+			fmt.Fprintf(writer, "new\t%s\t%s\t%s\t%s\n",
+				finding.ID, finding.Target, finding.Location.Container, finding.Severity)
+		}
+		for _, change := range result.SeverityChanged {
+			fmt.Fprintf(writer, "severity\t%s\t%s\t%s\t%s -> %s\n",
+				change.Finding.ID, change.Finding.Target, change.Finding.Location.Container,
+				change.Before, change.After)
+		}
+		for _, finding := range result.Resolved {
+			fmt.Fprintf(writer, "resolved\t%s\t%s\t%s\t%s\n",
+				finding.ID, finding.Target, finding.Location.Container, finding.Severity)
+		}
+		if err := writer.Flush(); err != nil {
+			fmt.Fprintf(stderr, "clusterproof: write comparison table: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "\nSummary: %d new, %d severity-changed, %d resolved, %d unchanged\n",
+			len(result.New), len(result.SeverityChanged), len(result.Resolved), result.Unchanged)
+	}
+
+	if len(result.New) > 0 || len(result.SeverityChanged) > 0 {
+		return 2
+	}
+	return 0
+}
+
+func printCompareUsage(writer io.Writer) {
+	fmt.Fprintln(writer, `Usage:
+  clusterproof compare [--format table|json] BEFORE AFTER
+
+Compares two scan reports deterministically. BEFORE and AFTER may each be a
+JSON report file or an evidence bundle directory. Exit code 2 means new or
+escalated findings; both input hashes are recorded in the output.`)
 }
 
 func printExplainUsage(writer io.Writer) {
@@ -567,6 +658,7 @@ Usage:
   clusterproof evidence verify DIR
   clusterproof ruleset show [--format table|json]
   clusterproof explain RULE_ID
+  clusterproof compare BEFORE AFTER
   clusterproof version
 
 Run "clusterproof scan --help" for scan flags.`)

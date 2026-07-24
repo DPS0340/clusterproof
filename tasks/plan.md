@@ -150,7 +150,7 @@ control-plane implementation must not begin before Task 41 is complete.
 - [x] Task 28: Assess namespace Pod Security Admission configuration.
 - [ ] Task 29: Add bounded RBAC relationship analysis.
 - [ ] Task 30: Add NetworkPolicy and workload-exposure analysis.
-- [ ] Task 31: Add deterministic two-snapshot comparison.
+- [x] Task 31: Add deterministic two-snapshot comparison.
 - [ ] Task 32: Add an experimental bounded OpenReports adapter.
 - [ ] Task 33: Performance-test and release v0.5.
 

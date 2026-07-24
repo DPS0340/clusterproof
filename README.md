@@ -141,6 +141,21 @@ needs no cluster credentials and grants no write access.
 Exit codes are `0` for a successful policy pass, `2` when findings meet the
 requested threshold, and `1` for operational errors.
 
+Compare two scans deterministically without any service or retained history:
+
+```bash
+clusterproof scan ./deploy --format json --output before.json
+# ...fix findings...
+clusterproof scan ./deploy --format json --output after.json
+clusterproof compare before.json after.json
+```
+
+`compare` classifies findings as new, resolved, severity-changed, or
+unchanged, records both input SHA-256 hashes, accepts JSON reports or
+evidence bundle directories, and exits `2` when findings are new or
+escalated. Reports from different schema or ruleset versions are rejected
+with a migration-oriented error instead of producing a misleading diff.
+
 Inspect the exact native ruleset, generate technical readiness evidence, and
 verify that its file set still matches the bundle manifest:
 
