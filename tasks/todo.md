@@ -553,3 +553,112 @@ the separate Team control plane.
 **Dependencies:** Tasks 26-40 may inform discovery; no technical dependency blocks interviews
 **Files likely touched:** `docs/private-product-spec.md` in the private repository, design-partner research records
 **Estimated scope:** Medium
+
+## Task 42: Contract freeze gates
+
+**Description:** Make v1 contract stability mechanically verifiable instead of
+aspirational.
+
+**Acceptance criteria:**
+- [x] Released rule IDs are frozen by an append-only registry test.
+- [x] Ruleset, comparison, and trust-policy contracts have published schemas.
+- [x] A v0.6 all-fields fixture strict-decodes alongside the v0.3 fixture.
+- [x] Unused additive report fields are omitted, keeping strict consumers working.
+
+**Verification:**
+- [x] CI validates live scan, ruleset, and comparison output against schemas.
+- [x] `docs/contracts.md` defines the mechanical two-release v1.0 gate.
+
+**Dependencies:** Tasks 24, 31, 34
+**Files likely touched:** `internal/rules/frozen_test.go`, `schemas/*`, `testdata/compat/*`, `docs/contracts.md`
+**Estimated scope:** Small
+
+## Task 43: One-command supply-chain verification
+
+**Description:** Run signature and provenance verification during a repository
+scan for digest-pinned images, using the trust policy, behind explicit opt-in.
+
+**Acceptance criteria:**
+- [ ] `scan --trust-policy PATH --verify-signatures` verifies each digest-pinned image and emits findings for failures.
+- [ ] Offline remains the default; network use requires a separate explicit flag and is recorded in evidence.
+- [ ] Unpinned images are reported as unverifiable, never silently skipped.
+
+**Verification:**
+- [ ] Fake-cosign CLI tests cover verified, rejected, unpinned, and missing-policy paths.
+- [ ] Evidence bundles record verification outcomes per image.
+
+**Dependencies:** Tasks 34-37
+**Files likely touched:** `cmd/clusterproof/*`, `internal/sigstore/*`, `internal/evidence/*`, `docs/*`
+**Estimated scope:** Medium
+
+## Task 44: Scan-integrated SBOM/VEX suppression
+
+**Description:** Accept SBOM and VEX inputs during a scan and apply
+exact-identity VEX suppression to imported vulnerability findings.
+
+**Acceptance criteria:**
+- [ ] `scan --sbom PATH --vex PATH` suppresses only exact vulnerability/product matches.
+- [ ] Suppressed identities are recorded in the report like exception suppressions.
+- [ ] Stale or ambiguous VEX statements never suppress; the maximum age is configurable and bounded.
+
+**Verification:**
+- [ ] CLI tests cover exact match, near-miss identity, stale statement, and malformed input.
+- [ ] JSON/SARIF/evidence stay deterministic with and without VEX input.
+
+**Dependencies:** Task 38
+**Files likely touched:** `cmd/clusterproof/*`, `internal/vex/*`, `internal/model/*`, `docs/*`
+**Estimated scope:** Medium
+
+## Task 45: Runnable adoption examples
+
+**Description:** Publish the three focused examples the adoption track
+requires as runnable directories, not prose.
+
+**Acceptance criteria:**
+- [ ] `examples/repository-ci/` gates a sample repo with the pinned Action and SARIF upload.
+- [ ] `examples/cluster-scan/` documents the read-only scan with exact RBAC needed per scope.
+- [ ] `examples/soc2-evidence/` walks scan -> evidence -> sign -> verify -> auditor handoff.
+
+**Verification:**
+- [ ] Each example runs against a released binary with documented expected output.
+- [ ] README links all three and the quickstart still reaches CI in under 15 minutes.
+
+**Dependencies:** Tasks 26, 39
+**Files likely touched:** `examples/*`, `README.md`
+**Estimated scope:** Small
+
+## Task 46: Parser fuzzing and cross-version verification
+
+**Description:** Fuzz every untrusted-input parser in CI and prove evidence
+bundles verify across adjacent release binaries.
+
+**Acceptance criteria:**
+- [ ] Go native fuzz targets exist for manifest, exception, trust, SBOM, and VEX parsers.
+- [ ] CI runs each fuzzer for a bounded time on every main push.
+- [ ] v0.5-produced evidence verifies with the current binary and vice versa for unsigned bundles.
+
+**Verification:**
+- [ ] Two weeks of CI fuzzing with no unhandled panic before the v0.7 tag.
+- [ ] The cross-version test downloads the pinned prior release by checksum.
+
+**Dependencies:** Tasks 20-40
+**Files likely touched:** `internal/*/fuzz_test.go`, `.github/workflows/*`
+**Estimated scope:** Medium
+
+## Task 47: v0.7 release and v1 freeze eligibility
+
+**Description:** Ship the second consecutive no-breaking-migration release
+and record v1 contract freeze eligibility.
+
+**Acceptance criteria:**
+- [ ] All contract gates stayed green from v0.6.0 to the v0.7.0 tag.
+- [ ] Release notes state the v0.5 -> v0.6 -> v0.7 stability record explicitly.
+- [ ] The krew manifest and Action examples are pinned to v0.7.0 checksums.
+
+**Verification:**
+- [ ] Tests, race, vet, build, release archives, and a fresh krew install pass.
+- [ ] `docs/contracts.md` gains the dated freeze-eligibility record.
+
+**Dependencies:** Tasks 42-46
+**Files likely touched:** `CHANGELOG.md`, `deploy/krew/*`, `docs/contracts.md`, `examples/*`
+**Estimated scope:** Small

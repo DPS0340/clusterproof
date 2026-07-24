@@ -188,3 +188,18 @@ control-plane implementation must not begin before Task 41 is complete.
 - [ ] Three teams run ClusterProof weekly.
 - [ ] Two teams have paid for an engagement or pilot.
 - [ ] At least three teams share the same history, baseline, waiver, or rollup pain.
+
+### Phase 10: v0.7 Contract Hardening and Field Adoption
+
+- [x] Task 42: Freeze rule IDs and publish the remaining contract schemas.
+- [ ] Task 43: Wire signature/provenance verification into `scan` behind opt-in flags.
+- [ ] Task 44: Wire SBOM/VEX suppression into `scan` with recorded identities.
+- [ ] Task 45: Publish the three runnable adoption examples.
+- [ ] Task 46: Add parser fuzzing to CI and the cross-version verify test.
+- [ ] Task 47: Release v0.7 and declare the v1 contract freeze eligibility.
+
+### Checkpoint: Two stable releases
+
+- [ ] v0.5 -> v0.6 -> v0.7 shipped without a breaking report migration.
+- [ ] Frozen-ID, strict-decode, and live-schema CI gates stayed green all release.
+- [ ] krew-index review is merged or actively progressing.

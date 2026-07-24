@@ -1,7 +1,9 @@
 # ClusterProof Product Roadmap
 
-This roadmap starts from the v0.3.0 Community release. It is directional rather
-than a date promise: each phase advances only after its exit gate is met.
+This roadmap started from the v0.3.0 Community release. It is directional
+rather than a date promise: each phase advances only after its exit gate is
+met. Phases 1-3 (v0.4 through v0.6) shipped in 2026-07; their sections below
+are marked complete and retained as the record of what each release promised.
 
 ## North Star
 
@@ -39,9 +41,9 @@ governance, fleet operations, and support.
 6. Paid operational leverage. Central approvals, retained history, organization
    mappings, fleet views, SSO/RBAC, and support are commercial.
 
-## Phase 1 — v0.4: Trustworthy Daily Use
+## Phase 1 — v0.4: Trustworthy Daily Use — SHIPPED 2026-07-24
 
-**Target horizon:** 0–6 weeks
+**Released:** v0.4.0
 **Outcome:** engineers can adopt ClusterProof in CI without fighting input
 format, false-positive, or report-compatibility problems.
 
@@ -72,9 +74,9 @@ format, false-positive, or report-compatibility problems.
 - A new user can install, scan, suppress one reviewed exception, and add a CI
   gate in under 15 minutes using only public documentation.
 
-## Phase 2 — v0.5: Cluster Attack-Surface Coverage
+## Phase 2 — v0.5: Cluster Attack-Surface Coverage — SHIPPED 2026-07-24
 
-**Target horizon:** 6–12 weeks
+**Released:** v0.5.0
 **Outcome:** a cluster scan explains workload isolation, authorization, and
 network segmentation without requesting secret values or mutation rights.
 
@@ -101,9 +103,9 @@ network segmentation without requesting secret values or mutation rights.
 - Permission-denied and absent-resource cases are distinguishable in evidence.
 - A 5,000-workload fixture remains within documented time and memory budgets.
 
-## Phase 3 — v0.6: Verifiable Software Supply Chain
+## Phase 3 — v0.6: Verifiable Software Supply Chain — SHIPPED 2026-07-24
 
-**Target horizon:** 3–6 months
+**Released:** v0.6.0
 **Outcome:** image findings move from naming/tag heuristics to cryptographically
 verified identity, provenance, and vulnerability context.
 
@@ -128,9 +130,51 @@ verified identity, provenance, and vulnerability context.
 - Forged subject digests, wrong builders, expired material, and oversized
   attestations have regression tests.
 
-## Phase 4 — v0.7: Team Control Plane
+## Phase 3.5 — v0.7: Contract Hardening and Field Adoption
 
-**Target horizon:** 6–9 months, gated by design-partner demand
+**Target horizon:** next 4–8 weeks; deliberately smaller than prior phases
+**Outcome:** the public contracts prove themselves stable across real usage,
+and the project has its first observable field adoption. v0.7 is the second
+of the two consecutive no-breaking-migration releases the v1.0 gate
+requires; feature restraint is the point.
+
+### Deliverables
+
+- Zero breaking changes to the report, ruleset, evidence, exception, trust,
+  and comparison contracts. Additive fields only, all omit-when-unused.
+  The stability gates in `docs/contracts.md` (frozen rule IDs, strict-decode
+  fixtures for v0.3 and v0.6, live schema validation in CI) stay green for
+  the whole release window.
+- Complete the krew-index review (PR #6120) and keep the manifest current
+  through the automated release pipeline.
+- Wire supply-chain verification into `scan`: an opt-in flag that runs
+  signature and provenance verification for digest-pinned images during a
+  repository scan, using the trust policy, and records outcomes as findings
+  and evidence. The primitives shipped in v0.6; v0.7 makes them one-command.
+- Wire SBOM/VEX suppression into `scan`: `--sbom` and `--vex` inputs that
+  apply exact-identity VEX suppression to imported vulnerability findings,
+  with suppressed identities recorded like exceptions.
+- Publish the three focused examples the adoption track requires:
+  repository CI, read-only cluster scan, and SOC 2 technical evidence
+  handoff, each as a runnable public example directory.
+- Fuzz the manifest, exception, trust-policy, SBOM, and VEX parsers with
+  Go native fuzzing in CI (bounded corpus time per run).
+- A documented upgrade-and-rollback test: v0.5 evidence bundles verify with
+  the v0.7 binary, and v0.7 unsigned bundles verify with the v0.5 binary.
+
+### Exit Gate
+
+- v0.5 → v0.6 → v0.7 constitutes two consecutive minor releases with no
+  breaking report migration; the v1 contract freeze can be declared.
+- The krew-index submission is merged or has a concrete reviewer-driven
+  task list.
+- At least three external teams have installed a release (download counts
+  or direct confirmation; no telemetry).
+- Fuzzers run in CI and have produced no unhandled panic for two weeks.
+
+## Phase 4 — v0.8: Team Control Plane
+
+**Target horizon:** demand-gated; no calendar promise
 **Outcome:** teams can manage repeated scans and exceptions without spreadsheets.
 
 ### Build Gate
@@ -167,13 +211,19 @@ Do not build the control plane merely because the CLI exists. Start only after:
 
 ## Phase 5 — v1.0: Enterprise Evidence Operations
 
-**Target horizon:** 9–12 months, adoption-gated
+**Target horizon:** adoption-gated; requires the Phase 3.5 stability gate
+and at least the Phase 4 build gate conversation to have concluded
 **Outcome:** ClusterProof has a stable public contract and can operate in
 regulated, multi-cluster, and disconnected environments.
 
 ### Deliverables
 
-- Stable v1 report, ruleset, evidence, and CLI contracts with migration tooling.
+- Stable v1 report, ruleset, evidence, exception, trust, comparison, and CLI
+  contracts. The freeze is a rename of the already-stable v0.7-era schemas,
+  not a redesign: contracts that needed changing should have changed before
+  this phase.
+- A `clusterproof migrate` command for any consumer still on pre-freeze
+  report shapes, plus a published schema-change log.
 - OIDC/SAML SSO, enterprise RBAC, supportable backup/restore, and high-availability
   deployment guidance.
 - Air-gapped artifact, policy, signature, SBOM, and vulnerability-data workflows.
@@ -195,9 +245,10 @@ regulated, multi-cluster, and disconnected environments.
 Product work alone does not validate a business. Run these activities alongside
 the technical phases:
 
-- Complete the upstream krew review and keep release checksums automated.
+- Complete the upstream krew review (PR #6120 open with the v0.6.0 manifest)
+  and keep release checksums automated. DONE except reviewer follow-up.
 - Publish three focused examples: repository CI, read-only cluster scan, and
-  SOC 2 technical evidence handoff.
+  SOC 2 technical evidence handoff. Scheduled inside Phase 3.5.
 - Offer the fixed-scope baseline, supply-chain, and evidence readiness services
   described in `open-core.md`.
 - Convert repeated consulting artifacts into product workflow only after the same
