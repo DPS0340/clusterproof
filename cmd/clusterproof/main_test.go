@@ -664,6 +664,78 @@ func TestParseScanOptionsClusterScopesRequireKubeconfig(t *testing.T) {
 	}
 }
 
+func TestRunScanRBACScopeProducesPrivilegeFindings(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("release targets darwin and linux")
+	}
+	executable := filepath.Join(t.TempDir(), "fake-kubectl")
+	script := `#!/bin/sh
+case "$*" in
+*"get roles"*)
+  printf '%s' 'apiVersion: v1
+kind: List
+items:
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata: {name: too-broad}
+  rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata: {name: too-broad-binding}
+  roleRef: {kind: ClusterRole, name: too-broad}
+  subjects:
+  - {kind: ServiceAccount, namespace: payments, name: runner}
+'
+  ;;
+*)
+  printf '%s' 'apiVersion: v1
+kind: List
+items: []
+'
+  ;;
+esac
+`
+	if err := os.WriteFile(executable, []byte(script), 0o700); err != nil {
+		t.Fatalf("write fake kubectl: %v", err)
+	}
+	previousExecutable := kubectlExecutable
+	kubectlExecutable = executable
+	t.Cleanup(func() { kubectlExecutable = previousExecutable })
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"scan",
+		"--kubeconfig", filepath.Join(t.TempDir(), "config"),
+		"--cluster-scopes", "workloads,rbac",
+		"--format", "json",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr=%s", code, stderr.String())
+	}
+	var scan model.Report
+	if err := json.Unmarshal(stdout.Bytes(), &scan); err != nil {
+		t.Fatalf("invalid JSON output: %v\n%s", err, stdout.String())
+	}
+	var wildcard *model.Finding
+	for index := range scan.Findings {
+		if scan.Findings[index].ID == "CP-RBAC-001" {
+			wildcard = &scan.Findings[index]
+		}
+	}
+	if wildcard == nil {
+		t.Fatalf("missing wildcard RBAC finding: %#v", scan.Findings)
+	}
+	if wildcard.Target != "payments/ServiceAccount/runner" {
+		t.Fatalf("target = %q", wildcard.Target)
+	}
+	if !strings.Contains(wildcard.Evidence.Observed, "too-broad") {
+		t.Fatalf("evidence lacks role path: %q", wildcard.Evidence.Observed)
+	}
+}
+
 func TestRunCompareDetectsChanges(t *testing.T) {
 	directory := t.TempDir()
 	root := t.TempDir()

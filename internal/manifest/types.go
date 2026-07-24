@@ -194,7 +194,11 @@ type Result struct {
 	// Namespaces holds Namespace metadata collected for Pod Security
 	// Admission assessment. Only labels are retained; no payload data.
 	Namespaces []Namespace
-	Inputs     []model.Input
+	// RBACRoles and RBACBindings hold normalized RBAC objects collected by
+	// the rbac scope. Rules retain verbs and resource names only.
+	RBACRoles    []RBACRole
+	RBACBindings []RBACBinding
+	Inputs       []model.Input
 }
 
 // Namespace is the metadata-only normalization of one Kubernetes Namespace.
@@ -202,4 +206,41 @@ type Namespace struct {
 	Name     string
 	Labels   map[string]string
 	Location model.Location
+}
+
+// RBACRule is one normalized PolicyRule from a Role or ClusterRole.
+type RBACRule struct {
+	APIGroups []string
+	Resources []string
+	Verbs     []string
+}
+
+// RBACRole is a normalized Role or ClusterRole without payload data.
+type RBACRole struct {
+	Kind      string // "Role" or "ClusterRole"
+	Namespace string // empty for ClusterRole
+	Name      string
+	Rules     []RBACRule
+	// AggregationSelectors records that the ClusterRole aggregates other
+	// roles; matching label content is not retained.
+	Aggregates bool
+	Location   model.Location
+}
+
+// RBACSubject is one subject of a binding.
+type RBACSubject struct {
+	Kind      string // "User", "Group", or "ServiceAccount"
+	Namespace string
+	Name      string
+}
+
+// RBACBinding is a normalized RoleBinding or ClusterRoleBinding.
+type RBACBinding struct {
+	Kind      string // "RoleBinding" or "ClusterRoleBinding"
+	Namespace string // empty for ClusterRoleBinding
+	Name      string
+	RoleKind  string // referenced "Role" or "ClusterRole"
+	RoleName  string
+	Subjects  []RBACSubject
+	Location  model.Location
 }

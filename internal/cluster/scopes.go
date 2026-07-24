@@ -20,11 +20,16 @@ const ScopeWorkloads = "workloads"
 // label assessment. No namespaced payload object is requested.
 const ScopeNamespaces = "namespaces"
 
+// ScopeRBAC reads Roles, ClusterRoles, RoleBindings, and ClusterRoleBindings
+// for privilege-path analysis. No Secret or credential data is requested.
+const ScopeRBAC = "rbac"
+
 // scopeResources is the fixed, versioned read allowlist. Verbs are never
 // configurable: every scope is exactly one bounded kubectl get.
 var scopeResources = map[string]string{
 	ScopeWorkloads:  workloadResources,
 	ScopeNamespaces: "namespaces",
+	ScopeRBAC:       "roles.rbac.authorization.k8s.io,clusterroles.rbac.authorization.k8s.io,rolebindings.rbac.authorization.k8s.io,clusterrolebindings.rbac.authorization.k8s.io",
 }
 
 // ScopeNames returns the sorted names of every defined scope.
@@ -71,7 +76,15 @@ func ScopeArgs(options Options, scope string) []string {
 		args = append(args, "--context", options.Context)
 	}
 	args = append(args, "get", resources)
-	if scope != ScopeNamespaces {
+	switch scope {
+	case ScopeNamespaces:
+		// Namespace metadata is cluster-scoped; no namespace flag applies.
+	case ScopeRBAC:
+		// ClusterRoles and ClusterRoleBindings are cluster-scoped, so the
+		// combined RBAC read always spans all namespaces for the namespaced
+		// kinds; a namespace filter would silently hide bindings.
+		args = append(args, "--all-namespaces")
+	default:
 		if options.Namespace == "" {
 			args = append(args, "--all-namespaces")
 		} else {
@@ -123,6 +136,8 @@ func CollectScopes(ctx context.Context, options Options, scopes []string) (Scope
 		}
 		aggregate.Result.Workloads = append(aggregate.Result.Workloads, result.Workloads...)
 		aggregate.Result.Namespaces = append(aggregate.Result.Namespaces, result.Namespaces...)
+		aggregate.Result.RBACRoles = append(aggregate.Result.RBACRoles, result.RBACRoles...)
+		aggregate.Result.RBACBindings = append(aggregate.Result.RBACBindings, result.RBACBindings...)
 		aggregate.Result.Inputs = append(aggregate.Result.Inputs, result.Inputs...)
 		aggregate.Scopes = append(aggregate.Scopes, ScopeStatus{
 			Scope:     scope,

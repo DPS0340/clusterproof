@@ -327,13 +327,13 @@ labels together with their pinned policy versions.
 to identify high-signal privilege paths.
 
 **Acceptance criteria:**
-- [ ] Rules cover wildcards, Secrets access, workload creation, `pods/exec`, impersonation, bind, and escalate.
-- [ ] Findings identify the subject-to-role path without exposing credential data.
-- [ ] Graph node, edge, depth, and output limits fail closed.
+- [x] Rules cover wildcards, Secrets access, workload creation, `pods/exec`, impersonation, bind, and escalate.
+- [x] Findings identify the subject-to-role path without exposing credential data.
+- [x] Graph node, edge, depth, and output limits fail closed.
 
 **Verification:**
-- [ ] Fixtures cover namespaced/cluster bindings, aggregation, groups, and cycles.
-- [ ] The collector requests only RBAC metadata and workload service-account names.
+- [x] Fixtures cover namespaced/cluster bindings, aggregation, groups, and cycles.
+- [x] The collector requests only RBAC metadata and workload service-account names.
 
 **Dependencies:** Tasks 27-28
 **Files likely touched:** `internal/cluster/*`, `internal/rbac/*`, `internal/model/*`, `cmd/clusterproof/*`

@@ -162,6 +162,13 @@ var psaSource = SourceReference{
 	Relationship: RelationshipAligned,
 }
 
+var rbacSource = SourceReference{
+	Name:         "Kubernetes RBAC Good Practices",
+	Version:      "v1.36",
+	URL:          "https://kubernetes.io/docs/concepts/security/rbac-good-practices/",
+	Relationship: RelationshipAligned,
+}
+
 var slsaSource = SourceReference{
 	Name:         "SLSA Specification",
 	Version:      "v1.2",
@@ -175,7 +182,7 @@ var linuxOnly = []WorkloadOS{OSLinux}
 var defaultCatalog = Catalog{
 	SchemaVersion: "1",
 	ID:            "clusterproof-default",
-	Version:       "1.2.0",
+	Version:       "1.3.0",
 	Kubernetes: VersionContract{
 		KubernetesMinor: "1.36",
 		SupportedMinors: []string{"1.34", "1.35", "1.36"},
@@ -383,6 +390,62 @@ var defaultCatalog = Catalog{
 			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSA"},
 			Sources:     []SourceReference{psaSource},
+		},
+		{
+			ID: "CP-RBAC-001", Title: "Wildcard permission grant", Category: "rbac",
+			Description: "A role granting * verbs on * resources is cluster-admin-equivalent for its scope.",
+			Remediation: "Replace wildcard verbs and resources with the explicit permissions the subject needs.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:RBAC-Good-Practices"},
+			Sources:     []SourceReference{rbacSource},
+		},
+		{
+			ID: "CP-RBAC-002", Title: "Secrets read access granted", Category: "rbac",
+			Description: "Reading Secrets exposes every credential in the grant's scope.",
+			Remediation: "Scope Secret access to named resources or use projected volumes and workload identity.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:RBAC-Good-Practices"},
+			Sources:     []SourceReference{rbacSource},
+		},
+		{
+			ID: "CP-RBAC-003", Title: "Workload creation privilege", Category: "rbac",
+			Description: "Creating workloads lets a subject run arbitrary pods, including privileged ones, in scope.",
+			Remediation: "Restrict workload creation to deployment automation with reviewed pipelines.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:RBAC-Good-Practices"},
+			Sources:     []SourceReference{rbacSource},
+		},
+		{
+			ID: "CP-RBAC-004", Title: "Pod exec privilege", Category: "rbac",
+			Description: "pods/exec provides interactive code execution inside every reachable container.",
+			Remediation: "Limit exec to break-glass roles with audit logging.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:RBAC-Good-Practices"},
+			Sources:     []SourceReference{rbacSource},
+		},
+		{
+			ID: "CP-RBAC-005", Title: "Impersonation privilege", Category: "rbac",
+			Description: "Impersonation lets the subject act as any user or group it can name, bypassing its own authorization.",
+			Remediation: "Remove impersonate verbs outside dedicated, audited administrative tooling.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:RBAC-Good-Practices"},
+			Sources:     []SourceReference{rbacSource},
+		},
+		{
+			ID: "CP-RBAC-006", Title: "Bind or escalate privilege", Category: "rbac",
+			Description: "bind and escalate allow granting permissions beyond the subject's own, defeating RBAC containment.",
+			Remediation: "Reserve bind and escalate for the cluster's role-management controller.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:RBAC-Good-Practices"},
+			Sources:     []SourceReference{rbacSource},
+		},
+		{
+			ID: "CP-RBAC-007", Title: "Service account token creation privilege", Category: "rbac",
+			Description: "serviceaccounts/token lets the subject mint credentials for other identities.",
+			Remediation: "Remove token creation or scope it to the specific automation account that needs it.",
+			OS:          allOS,
+			ControlRefs: []string{"SOC2:CC6", "Kubernetes:RBAC-Good-Practices"},
+			Sources:     []SourceReference{rbacSource},
 		},
 		{
 			ID: "CP-SUPPLY-001", Title: "Container image uses a mutable latest tag", Category: "supply-chain",

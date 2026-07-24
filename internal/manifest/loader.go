@@ -97,7 +97,7 @@ func LoadBytes(source string, data []byte, limits Limits) (Result, error) {
 	}
 
 	sum := sha256.Sum256(data)
-	workloads, namespaces, _, err := decodeFileFull(source, data, 0, limits)
+	workloads, namespaces, roles, bindings, _, err := decodeFileRBAC(source, data, 0, limits)
 	if err != nil {
 		return Result{}, err
 	}
@@ -107,8 +107,10 @@ func LoadBytes(source string, data []byte, limits Limits) (Result, error) {
 			SHA256: hex.EncodeToString(sum[:]),
 			Bytes:  int64(len(data)),
 		}},
-		Workloads:  workloads,
-		Namespaces: namespaces,
+		Workloads:    workloads,
+		Namespaces:   namespaces,
+		RBACRoles:    roles,
+		RBACBindings: bindings,
 	}, nil
 }
 
@@ -188,9 +190,16 @@ func readBounded(path string, maxBytes int64) ([]byte, error) {
 }
 
 func decodeFileFull(path string, data []byte, priorDocuments int, limits Limits) ([]Workload, []Namespace, int, error) {
+	workloads, namespaces, _, _, count, err := decodeFileRBAC(path, data, priorDocuments, limits)
+	return workloads, namespaces, count, err
+}
+
+func decodeFileRBAC(path string, data []byte, priorDocuments int, limits Limits) ([]Workload, []Namespace, []RBACRole, []RBACBinding, int, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	var workloads []Workload
 	var namespaces []Namespace
+	var roles []RBACRole
+	var bindings []RBACBinding
 	documents := 0
 
 	for {
@@ -200,40 +209,53 @@ func decodeFileFull(path string, data []byte, priorDocuments int, limits Limits)
 			break
 		}
 		if err != nil {
-			return nil, nil, documents, fmt.Errorf("decode manifest %q document %d: %w", path, documents+1, err)
+			return nil, nil, nil, nil, documents, fmt.Errorf("decode manifest %q document %d: %w", path, documents+1, err)
 		}
 		if len(document.Content) == 0 {
 			continue
 		}
 		documents++
 		if priorDocuments+documents > limits.MaxDocuments {
-			return nil, nil, documents, fmt.Errorf("manifest input exceeds document limit of %d", limits.MaxDocuments)
+			return nil, nil, nil, nil, documents, fmt.Errorf("manifest input exceeds document limit of %d", limits.MaxDocuments)
 		}
 		if err := validateNode(&document, limits); err != nil {
-			return nil, nil, documents, fmt.Errorf("validate manifest %q document %d: %w", path, documents, err)
+			return nil, nil, nil, nil, documents, fmt.Errorf("validate manifest %q document %d: %w", path, documents, err)
 		}
 
 		var resource rawResource
 		if err := document.Decode(&resource); err != nil {
-			return nil, nil, documents, fmt.Errorf("normalize manifest %q document %d: %w", path, documents, err)
+			return nil, nil, nil, nil, documents, fmt.Errorf("normalize manifest %q document %d: %w", path, documents, err)
 		}
-		newWorkloads, newNamespaces := normalizeResourceFull(resource, path, documents, document.Content[0].Line)
+		newWorkloads, newNamespaces, newRoles, newBindings := normalizeResourceRBAC(resource, path, documents, document.Content[0].Line)
 		workloads = append(workloads, newWorkloads...)
 		namespaces = append(namespaces, newNamespaces...)
+		roles = append(roles, newRoles...)
+		bindings = append(bindings, newBindings...)
 	}
-	return workloads, namespaces, documents, nil
+	return workloads, namespaces, roles, bindings, documents, nil
 }
 
-func normalizeResourceFull(resource rawResource, path string, document, line int) ([]Workload, []Namespace) {
+func normalizeResourceRBAC(resource rawResource, path string, document, line int) ([]Workload, []Namespace, []RBACRole, []RBACBinding) {
 	if resource.Kind == "List" {
 		var workloads []Workload
 		var namespaces []Namespace
+		var roles []RBACRole
+		var bindings []RBACBinding
 		for _, item := range resource.Items {
-			newWorkloads, newNamespaces := normalizeResourceFull(item, path, document, line)
+			newWorkloads, newNamespaces, newRoles, newBindings := normalizeResourceRBAC(item, path, document, line)
 			workloads = append(workloads, newWorkloads...)
 			namespaces = append(namespaces, newNamespaces...)
+			roles = append(roles, newRoles...)
+			bindings = append(bindings, newBindings...)
 		}
-		return workloads, namespaces
+		return workloads, namespaces, roles, bindings
+	}
+
+	location := model.Location{
+		Path:     path,
+		Document: document,
+		Line:     line,
+		Resource: resource.Kind + "/" + resource.Metadata.Name,
 	}
 
 	if resource.Kind == "Namespace" {
@@ -242,20 +264,46 @@ func normalizeResourceFull(resource rawResource, path string, document, line int
 			labels[key] = value
 		}
 		return nil, []Namespace{{
-			Name:   resource.Metadata.Name,
-			Labels: labels,
-			Location: model.Location{
-				Path:     path,
-				Document: document,
-				Line:     line,
-				Resource: "Namespace/" + resource.Metadata.Name,
-			},
+			Name:     resource.Metadata.Name,
+			Labels:   labels,
+			Location: location,
+		}}, nil, nil
+	}
+
+	if resource.Kind == "Role" || resource.Kind == "ClusterRole" {
+		return nil, nil, []RBACRole{{
+			Kind:       resource.Kind,
+			Namespace:  resource.Metadata.Namespace,
+			Name:       resource.Metadata.Name,
+			Rules:      normalizeRBACRules(resource.Rules),
+			Aggregates: len(resource.AggregationRule.ClusterRoleSelectors) > 0,
+			Location:   location,
+		}}, nil
+	}
+
+	if resource.Kind == "RoleBinding" || resource.Kind == "ClusterRoleBinding" {
+		subjects := make([]RBACSubject, 0, len(resource.Subjects))
+		for _, subject := range resource.Subjects {
+			subjects = append(subjects, RBACSubject{
+				Kind:      subject.Kind,
+				Namespace: subject.Namespace,
+				Name:      subject.Name,
+			})
+		}
+		return nil, nil, nil, []RBACBinding{{
+			Kind:      resource.Kind,
+			Namespace: resource.Metadata.Namespace,
+			Name:      resource.Metadata.Name,
+			RoleKind:  resource.RoleRef.Kind,
+			RoleName:  resource.RoleRef.Name,
+			Subjects:  subjects,
+			Location:  location,
 		}}
 	}
 
 	podSpec, ok := resource.podSpec()
 	if !ok {
-		return nil, nil
+		return nil, nil, nil, nil
 	}
 	return []Workload{{
 		APIVersion: resource.APIVersion,
@@ -263,14 +311,21 @@ func normalizeResourceFull(resource rawResource, path string, document, line int
 		Namespace:  resource.Metadata.Namespace,
 		Name:       resource.Metadata.Name,
 		OwnerKinds: ownerKinds(resource.Metadata.OwnerReferences),
-		Location: model.Location{
-			Path:     path,
-			Document: document,
-			Line:     line,
-			Resource: resource.Kind + "/" + resource.Metadata.Name,
-		},
-		PodSpec: podSpec,
-	}}, nil
+		Location:   location,
+		PodSpec:    podSpec,
+	}}, nil, nil, nil
+}
+
+func normalizeRBACRules(rules []rawPolicyRule) []RBACRule {
+	normalized := make([]RBACRule, 0, len(rules))
+	for _, rule := range rules {
+		normalized = append(normalized, RBACRule{
+			APIGroups: append([]string(nil), rule.APIGroups...),
+			Resources: append([]string(nil), rule.Resources...),
+			Verbs:     append([]string(nil), rule.Verbs...),
+		})
+	}
+	return normalized
 }
 
 func ownerKinds(references []rawOwnerReference) []string {
@@ -312,11 +367,36 @@ func validateNode(root *yaml.Node, limits Limits) error {
 }
 
 type rawResource struct {
-	APIVersion string        `yaml:"apiVersion"`
-	Kind       string        `yaml:"kind"`
-	Metadata   rawMetadata   `yaml:"metadata"`
-	Spec       rawSpec       `yaml:"spec"`
-	Items      []rawResource `yaml:"items"`
+	APIVersion      string             `yaml:"apiVersion"`
+	Kind            string             `yaml:"kind"`
+	Metadata        rawMetadata        `yaml:"metadata"`
+	Spec            rawSpec            `yaml:"spec"`
+	Items           []rawResource      `yaml:"items"`
+	Rules           []rawPolicyRule    `yaml:"rules"`
+	Subjects        []rawSubject       `yaml:"subjects"`
+	RoleRef         rawRoleRef         `yaml:"roleRef"`
+	AggregationRule rawAggregationRule `yaml:"aggregationRule"`
+}
+
+type rawPolicyRule struct {
+	APIGroups []string `yaml:"apiGroups"`
+	Resources []string `yaml:"resources"`
+	Verbs     []string `yaml:"verbs"`
+}
+
+type rawSubject struct {
+	Kind      string `yaml:"kind"`
+	Namespace string `yaml:"namespace"`
+	Name      string `yaml:"name"`
+}
+
+type rawRoleRef struct {
+	Kind string `yaml:"kind"`
+	Name string `yaml:"name"`
+}
+
+type rawAggregationRule struct {
+	ClusterRoleSelectors []map[string]any `yaml:"clusterRoleSelectors"`
 }
 
 type rawMetadata struct {

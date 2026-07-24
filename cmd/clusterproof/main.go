@@ -19,6 +19,7 @@ import (
 	"github.com/DPS0340/clusterproof/internal/manifest"
 	"github.com/DPS0340/clusterproof/internal/model"
 	"github.com/DPS0340/clusterproof/internal/policyreport"
+	"github.com/DPS0340/clusterproof/internal/rbac"
 	"github.com/DPS0340/clusterproof/internal/report"
 	"github.com/DPS0340/clusterproof/internal/rules"
 	"github.com/DPS0340/clusterproof/internal/trivy"
@@ -395,6 +396,14 @@ func runScan(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		findings = append(findings, rules.Evaluate(workload)...)
 	}
 	findings = append(findings, rules.EvaluateNamespaces(loaded.Namespaces)...)
+	if len(loaded.RBACRoles) > 0 || len(loaded.RBACBindings) > 0 {
+		rbacFindings, rbacErr := rbac.Analyze(loaded.RBACRoles, loaded.RBACBindings, rbac.DefaultLimits())
+		if rbacErr != nil {
+			fmt.Fprintf(stderr, "clusterproof: analyze RBAC: %v\n", rbacErr)
+			return 1
+		}
+		findings = append(findings, rbacFindings...)
+	}
 
 	if options.policyJSON != "" {
 		imported, err := policyreport.Load(options.policyJSON, policyreport.DefaultLimits())
@@ -683,7 +692,8 @@ Flags:
   --context NAME             Kubeconfig context (default current context)
   --namespace NAME           Scan one namespace (default all namespaces)
   --cluster-scopes LIST      Comma-separated read scopes (default workloads;
-                             also: namespaces for PSA label assessment)
+                             also: namespaces for PSA labels, rbac for
+                             privilege-path analysis)
   -h, --help                 Show help
 
 Use - to read bounded multi-document YAML or JSON from stdin, for example:

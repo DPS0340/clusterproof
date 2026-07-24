@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/DPS0340/clusterproof/internal/manifest"
+	"github.com/DPS0340/clusterproof/internal/model"
+	"github.com/DPS0340/clusterproof/internal/rbac"
 )
 
 func TestDefaultCatalogCoversEveryNativeFinding(t *testing.T) {
@@ -52,6 +54,7 @@ func TestDefaultCatalogCoversEveryNativeFinding(t *testing.T) {
 
 	findings := Evaluate(workload)
 	findings = append(findings, EvaluateNamespaces(allPSAViolationsNamespaces())...)
+	findings = append(findings, allRBACFindings(t)...)
 	emitted := make([]string, 0, len(findings))
 	for _, finding := range findings {
 		emitted = append(emitted, finding.ID)
@@ -89,6 +92,32 @@ func TestDefaultCatalogCoversEveryNativeFinding(t *testing.T) {
 // allPSAViolationsNamespaces triggers every namespace-admission rule exactly
 // once across four namespaces, because several PSA states are mutually
 // exclusive on a single namespace.
+func allRBACFindings(t *testing.T) []model.Finding {
+	t.Helper()
+	roles := []manifest.RBACRole{{
+		Kind: "ClusterRole", Name: "risky",
+		Rules: []manifest.RBACRule{
+			{APIGroups: []string{"*"}, Resources: []string{"*"}, Verbs: []string{"*"}},
+			{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}},
+			{APIGroups: []string{"apps"}, Resources: []string{"deployments"}, Verbs: []string{"create"}},
+			{APIGroups: []string{""}, Resources: []string{"pods/exec"}, Verbs: []string{"create"}},
+			{APIGroups: []string{""}, Resources: []string{"users"}, Verbs: []string{"impersonate"}},
+			{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"clusterroles"}, Verbs: []string{"bind"}},
+			{APIGroups: []string{""}, Resources: []string{"serviceaccounts/token"}, Verbs: []string{"create"}},
+		},
+	}}
+	bindings := []manifest.RBACBinding{{
+		Kind: "ClusterRoleBinding", Name: "risky-binding",
+		RoleKind: "ClusterRole", RoleName: "risky",
+		Subjects: []manifest.RBACSubject{{Kind: "ServiceAccount", Namespace: "payments", Name: "runner"}},
+	}}
+	findings, err := rbac.Analyze(roles, bindings, rbac.DefaultLimits())
+	if err != nil {
+		t.Fatalf("Analyze RBAC: %v", err)
+	}
+	return findings
+}
+
 func allPSAViolationsNamespaces() []manifest.Namespace {
 	return []manifest.Namespace{
 		{
@@ -301,8 +330,8 @@ func TestCatalogOSMetadataMatchesRuleGating(t *testing.T) {
 		emitted[finding.ID] = true
 	}
 	for _, rule := range catalog.Rules {
-		if rule.Category == "namespace-admission" {
-			continue // namespace rules are evaluated against Namespace metadata, not workloads
+		if rule.Category == "namespace-admission" || rule.Category == "rbac" {
+			continue // evaluated against Namespace metadata or RBAC objects, not workloads
 		}
 		if emitted[rule.ID] && !windowsApplicable[rule.ID] {
 			t.Fatalf("rule %s emitted on windows but cataloged Linux-only", rule.ID)

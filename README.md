@@ -101,7 +101,12 @@ the selected workload resources; permissions can be checked with
 
 Each scope in `--cluster-scopes` is one fixed, versioned read: `workloads`
 is the default snapshot above and `namespaces` reads Namespace metadata
-only, for Pod Security Admission label assessment. When the caller lacks
+only, for Pod Security Admission label assessment. The `rbac` scope reads
+Roles, ClusterRoles, RoleBindings, and ClusterRoleBindings — never Secrets
+or credential payloads — and reports high-signal privilege paths such as
+wildcard grants, Secrets read access, workload creation, `pods/exec`,
+impersonation, bind/escalate, and token minting, each identifying the exact
+subject-to-role path. When the caller lacks
 `list` permission for a scope, the scan continues and records the scope as
 `denied` in the report's `cluster_scopes` field — missing permission is
 reported as a partial assessment, never as a clean result.
