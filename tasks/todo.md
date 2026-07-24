@@ -489,13 +489,13 @@ expectations against the resolved artifact.
 turning absence of a vulnerability record into proof of safety.
 
 **Acceptance criteria:**
-- [ ] Supported schema versions, package counts, strings, and relationships are bounded.
-- [ ] VEX status applies only to an exact product/package/vulnerability identity.
-- [ ] Unknown or stale VEX data cannot silently clear a finding.
+- [x] Supported schema versions, package counts, strings, and relationships are bounded.
+- [x] VEX status applies only to an exact product/package/vulnerability identity.
+- [x] Unknown or stale VEX data cannot silently clear a finding.
 
 **Verification:**
-- [ ] Fixtures cover both SBOM formats, duplicate packages, malformed graphs, and VEX edge cases.
-- [ ] Input hashes and adapter versions appear in reports and evidence.
+- [x] Fixtures cover both SBOM formats, duplicate packages, malformed graphs, and VEX edge cases.
+- [x] Input hashes and adapter versions appear in reports and evidence.
 
 **Dependencies:** Tasks 34-35
 **Files likely touched:** `internal/sbom/*`, `internal/vex/*`, `internal/model/*`, `cmd/clusterproof/*`
