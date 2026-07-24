@@ -33,11 +33,24 @@ type PodSpec struct {
 	HostIPC                      bool            `yaml:"hostIPC"`
 	AutomountServiceAccountToken *bool           `yaml:"automountServiceAccountToken"`
 	ServiceAccountName           string          `yaml:"serviceAccountName"`
+	OS                           PodOS           `yaml:"os"`
 	SecurityContext              SecurityContext `yaml:"securityContext"`
 	Containers                   []Container     `yaml:"containers"`
 	InitContainers               []Container     `yaml:"initContainers"`
 	EphemeralContainers          []Container     `yaml:"ephemeralContainers"`
 	Volumes                      []Volume        `yaml:"volumes"`
+}
+
+// PodOS is the declared workload operating system from spec.os.
+type PodOS struct {
+	Name string `yaml:"name"`
+}
+
+// IsWindows reports whether the workload explicitly declares the Kubernetes
+// windows OS value. Any other value, including an absent one, keeps the
+// stricter Linux evaluation semantics used by Pod Security Admission.
+func (o PodOS) IsWindows() bool {
+	return o.Name == "windows"
 }
 
 // AllContainers returns regular, init, and ephemeral containers.

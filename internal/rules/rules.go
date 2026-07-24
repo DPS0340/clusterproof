@@ -96,6 +96,7 @@ func evaluatePod(workload manifest.Workload) []model.Finding {
 func evaluateContainer(workload manifest.Workload, container manifest.Container) []model.Finding {
 	var findings []model.Finding
 	context := container.SecurityContext
+	windows := workload.PodSpec.OS.IsWindows()
 
 	if context.Privileged != nil && *context.Privileged {
 		findings = append(findings, containerFinding(
@@ -109,7 +110,7 @@ func evaluateContainer(workload manifest.Workload, container manifest.Container)
 		))
 	}
 
-	if context.AllowPrivilegeEscalation == nil || *context.AllowPrivilegeEscalation {
+	if !windows && (context.AllowPrivilegeEscalation == nil || *context.AllowPrivilegeEscalation) {
 		findings = append(findings, containerFinding(
 			workload, container,
 			"CP-K8S-004", model.SeverityHigh,
@@ -121,7 +122,7 @@ func evaluateContainer(workload manifest.Workload, container manifest.Container)
 		))
 	}
 
-	if severity, observed, unsafe := nonRootRisk(workload.PodSpec.SecurityContext, context); unsafe {
+	if severity, observed, unsafe := nonRootRisk(workload.PodSpec.SecurityContext, context, windows); unsafe {
 		findings = append(findings, containerFinding(
 			workload, container,
 			"CP-K8S-005", severity,
@@ -133,7 +134,7 @@ func evaluateContainer(workload manifest.Workload, container manifest.Container)
 		))
 	}
 
-	if severity, observed, unsafe := seccompRisk(workload.PodSpec.SecurityContext, context); unsafe {
+	if severity, observed, unsafe := seccompRisk(workload.PodSpec.SecurityContext, context); !windows && unsafe {
 		findings = append(findings, containerFinding(
 			workload, container,
 			"CP-K8S-006", severity,
@@ -145,7 +146,7 @@ func evaluateContainer(workload manifest.Workload, container manifest.Container)
 		))
 	}
 
-	if capabilities := unexpectedCapabilities(context.Capabilities.Add); len(capabilities) > 0 {
+	if capabilities := unexpectedCapabilities(context.Capabilities.Add); !windows && len(capabilities) > 0 {
 		findings = append(findings, containerFinding(
 			workload, container,
 			"CP-K8S-007", model.SeverityHigh,
@@ -157,7 +158,7 @@ func evaluateContainer(workload manifest.Workload, container manifest.Container)
 		))
 	}
 
-	if !containsFold(context.Capabilities.Drop, "ALL") {
+	if !windows && !containsFold(context.Capabilities.Drop, "ALL") {
 		findings = append(findings, containerFinding(
 			workload, container,
 			"CP-K8S-008", model.SeverityMedium,
@@ -185,7 +186,7 @@ func evaluateContainer(workload manifest.Workload, container manifest.Container)
 	return findings
 }
 
-func nonRootRisk(pod, container manifest.SecurityContext) (model.Severity, string, bool) {
+func nonRootRisk(pod, container manifest.SecurityContext, windows bool) (model.Severity, string, bool) {
 	if container.RunAsNonRoot != nil {
 		if *container.RunAsNonRoot {
 			return "", "", false
@@ -199,6 +200,11 @@ func nonRootRisk(pod, container manifest.SecurityContext) (model.Severity, strin
 		return model.SeverityHigh, "pod runAsNonRoot: false", true
 	}
 
+	// runAsUser is a Linux-only field; Kubernetes ignores it for declared
+	// Windows workloads, so it cannot satisfy or violate the non-root policy.
+	if windows {
+		return model.SeverityMedium, "non-root policy absent", true
+	}
 	user := container.RunAsUser
 	if user == nil {
 		user = pod.RunAsUser

@@ -14,6 +14,27 @@ Kubernetes and separates policy definition from enforcement. Gatekeeper and
 Kyverno libraries are useful policy implementations, but they are not a single
 universal standard and can change independently.
 
+## Kubernetes version and workload OS contract
+
+The native catalog pins the exact Pod Security Standards semantics it
+evaluates. `clusterproof ruleset show --format json` exposes the contract in
+the `kubernetes` object:
+
+- `kubernetes_minor` is the documented Kubernetes minor the alignment review
+  used.
+- `supported_minors` lists every minor whose PSS semantics the catalog is
+  known to match. A version outside this list is reported as unsupported and
+  is never silently treated as the newest release, and `latest` is always
+  rejected as ambiguous.
+
+Each rule also declares the workload operating systems it applies to. Pods
+that declare `spec.os.name: windows` are not evaluated against Linux-only
+controls (privilege escalation, seccomp, and Linux capabilities), matching the
+Pod Security Admission exemptions introduced in Kubernetes v1.25. The
+Linux-only `runAsUser` field can neither satisfy nor violate the non-root
+policy for declared Windows workloads. Any other `spec.os.name` value,
+including an absent one, keeps the stricter Linux evaluation semantics.
+
 External executable rules are not vendored or fetched at scan time. An
 organization that needs them should pin the policy repository commit or artifact
 digest in its own delivery process, execute it in the chosen policy engine, and

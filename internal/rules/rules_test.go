@@ -173,6 +173,67 @@ func TestEvaluateIncludesInitContainers(t *testing.T) {
 	}
 }
 
+func TestEvaluateWindowsWorkloadSkipsLinuxOnlyRules(t *testing.T) {
+	workload := manifest.Workload{
+		Kind: "Pod",
+		Name: "win-app",
+		PodSpec: manifest.PodSpec{
+			OS: manifest.PodOS{Name: "windows"},
+			Containers: []manifest.Container{{
+				Name:  "app",
+				Image: "example.com/win/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				SecurityContext: manifest.SecurityContext{
+					RunAsNonRoot: boolPointer(true),
+					// No allowPrivilegeEscalation, seccomp, or capability
+					// configuration: all Linux-only on declared Windows pods.
+					Capabilities: manifest.Capabilities{Add: []string{"SYS_ADMIN"}},
+				},
+			}},
+			AutomountServiceAccountToken: boolPointer(false),
+		},
+	}
+	workload.PodSpec.Containers[0].SecurityContext.ReadOnlyRootFilesystem = boolPointer(true)
+
+	linuxOnly := map[string]bool{
+		"CP-K8S-004": true,
+		"CP-K8S-006": true,
+		"CP-K8S-007": true,
+		"CP-K8S-008": true,
+	}
+	for _, finding := range Evaluate(workload) {
+		if linuxOnly[finding.ID] {
+			t.Fatalf("Linux-only finding %s emitted for windows workload", finding.ID)
+		}
+	}
+}
+
+func TestEvaluateWindowsWorkloadStillChecksCrossPlatformRules(t *testing.T) {
+	workload := secureWorkload()
+	workload.PodSpec.OS = manifest.PodOS{Name: "windows"}
+	workload.PodSpec.SecurityContext.RunAsNonRoot = nil
+	workload.PodSpec.Containers[0].SecurityContext.RunAsNonRoot = nil
+	// A Linux-only UID must not satisfy the non-root policy on Windows.
+	workload.PodSpec.Containers[0].SecurityContext.RunAsUser = int64Pointer(1000)
+
+	finding, ok := findByID(Evaluate(workload), "CP-K8S-005")
+	if !ok {
+		t.Fatal("windows workload without runAsNonRoot must keep CP-K8S-005")
+	}
+	if finding.Severity != model.SeverityMedium {
+		t.Fatalf("severity = %s, want medium", finding.Severity)
+	}
+}
+
+func TestEvaluateUndeclaredOSKeepsLinuxSemantics(t *testing.T) {
+	workload := secureWorkload()
+	workload.PodSpec.OS = manifest.PodOS{Name: "Windows"} // not the exact API value
+	workload.PodSpec.Containers[0].SecurityContext.AllowPrivilegeEscalation = nil
+
+	if _, ok := findByID(Evaluate(workload), "CP-K8S-004"); !ok {
+		t.Fatal("non-canonical os.name must keep Linux evaluation semantics")
+	}
+}
+
 func secureWorkload() manifest.Workload {
 	return manifest.Workload{
 		APIVersion: "apps/v1",

@@ -56,6 +56,35 @@ spec:
 	}
 }
 
+func TestLoadNormalizesPodOS(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "pod.yaml")
+	data := []byte(`
+apiVersion: v1
+kind: Pod
+metadata: {name: win-app}
+spec:
+  os: {name: windows}
+  containers:
+    - name: app
+      image: example.com/win/app:v1
+`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	result, err := Load(root, DefaultLimits())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(result.Workloads) != 1 {
+		t.Fatalf("got %d workloads, want 1", len(result.Workloads))
+	}
+	if !result.Workloads[0].PodSpec.OS.IsWindows() {
+		t.Fatalf("spec.os.name was not normalized: %#v", result.Workloads[0].PodSpec.OS)
+	}
+}
+
 func TestLoadSupportsCronJob(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "cronjob.yml")

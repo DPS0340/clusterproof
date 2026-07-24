@@ -252,4 +252,12 @@ func TestRunRulesetShowJSON(t *testing.T) {
 	if catalog.ID != "clusterproof-default" || catalog.Version == "" || len(catalog.Rules) == 0 {
 		t.Fatalf("unexpected catalog: %#v", catalog)
 	}
+	if catalog.Kubernetes.KubernetesMinor == "" || len(catalog.Kubernetes.SupportedMinors) == 0 {
+		t.Fatalf("ruleset show does not expose the Kubernetes version contract: %#v", catalog.Kubernetes)
+	}
+	for _, rule := range catalog.Rules {
+		if len(rule.OS) == 0 {
+			t.Fatalf("rule %s does not declare applicable workload OS", rule.ID)
+		}
+	}
 }

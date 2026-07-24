@@ -129,14 +129,26 @@ func runRuleset(args []string, stdout, stderr io.Writer) int {
 		}
 	case "table":
 		writer := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
-		fmt.Fprintf(writer, "RULESET\tVERSION\tRULES\n%s\t%s\t%d\n\n", catalog.ID, catalog.Version, len(catalog.Rules))
-		fmt.Fprintln(writer, "RULE\tCATEGORY\tSOURCE")
+		fmt.Fprintf(
+			writer,
+			"RULESET\tVERSION\tKUBERNETES\tSUPPORTED MINORS\tRULES\n%s\t%s\t%s\t%s\t%d\n\n",
+			catalog.ID,
+			catalog.Version,
+			catalog.Kubernetes.KubernetesMinor,
+			strings.Join(catalog.Kubernetes.SupportedMinors, ", "),
+			len(catalog.Rules),
+		)
+		fmt.Fprintln(writer, "RULE\tCATEGORY\tOS\tSOURCE")
 		for _, rule := range catalog.Rules {
 			sources := make([]string, 0, len(rule.Sources))
 			for _, source := range rule.Sources {
 				sources = append(sources, source.Name+" "+source.Version)
 			}
-			fmt.Fprintf(writer, "%s\t%s\t%s\n", rule.ID, rule.Category, strings.Join(sources, ", "))
+			osNames := make([]string, 0, len(rule.OS))
+			for _, os := range rule.OS {
+				osNames = append(osNames, string(os))
+			}
+			fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", rule.ID, rule.Category, strings.Join(osNames, ", "), strings.Join(sources, ", "))
 		}
 		if err := writer.Flush(); err != nil {
 			fmt.Fprintf(stderr, "clusterproof: write ruleset table: %v\n", err)

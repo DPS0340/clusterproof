@@ -1,6 +1,11 @@
 package rules
 
-import "github.com/DPS0340/clusterproof/internal/model"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/DPS0340/clusterproof/internal/model"
+)
 
 // Relationship describes how a ClusterProof rule relates to an external source.
 type Relationship string
@@ -20,11 +25,68 @@ type SourceReference struct {
 	Relationship Relationship `json:"relationship"`
 }
 
+// WorkloadOS identifies one pod operating system a rule applies to.
+type WorkloadOS string
+
+const (
+	// OSLinux marks a check evaluated for Linux and undeclared workloads.
+	OSLinux WorkloadOS = "linux"
+	// OSWindows marks a check evaluated for declared Windows workloads.
+	OSWindows WorkloadOS = "windows"
+)
+
+// VersionContract pins the exact upstream semantics the catalog evaluates.
+type VersionContract struct {
+	// KubernetesMinor is the exact documented Kubernetes minor the Pod
+	// Security Standards alignment was reviewed against, such as "1.36".
+	KubernetesMinor string `json:"kubernetes_minor"`
+	// SupportedMinors lists every Kubernetes minor whose PSS semantics the
+	// catalog is known to match. Versions outside this list are unsupported
+	// and must be reported explicitly, never treated as the newest release.
+	SupportedMinors []string `json:"supported_minors"`
+}
+
+// Supports reports whether an exact "MAJOR.MINOR" version is covered.
+func (v VersionContract) Supports(minor string) bool {
+	for _, supported := range v.SupportedMinors {
+		if supported == minor {
+			return true
+		}
+	}
+	return false
+}
+
+// ValidateVersion accepts a supported "MAJOR.MINOR" value and rejects
+// anything else, including "latest", with an explicit error.
+func (v VersionContract) ValidateVersion(raw string) (string, error) {
+	minor := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "v"))
+	if minor == "" {
+		return "", fmt.Errorf(
+			"kubernetes version is required; supported minors: %s",
+			strings.Join(v.SupportedMinors, ", "),
+		)
+	}
+	if strings.EqualFold(minor, "latest") {
+		return "", fmt.Errorf(
+			"kubernetes version %q is ambiguous and is never assumed; supported minors: %s",
+			raw, strings.Join(v.SupportedMinors, ", "),
+		)
+	}
+	if !v.Supports(minor) {
+		return "", fmt.Errorf(
+			"kubernetes version %q is not supported by catalog %s; supported minors: %s",
+			raw, defaultCatalog.Version, strings.Join(v.SupportedMinors, ", "),
+		)
+	}
+	return minor, nil
+}
+
 // RuleDefinition is immutable metadata for one native rule.
 type RuleDefinition struct {
 	ID          string            `json:"id"`
 	Title       string            `json:"title"`
 	Category    string            `json:"category"`
+	OS          []WorkloadOS      `json:"os"`
 	ControlRefs []string          `json:"control_refs"`
 	Sources     []SourceReference `json:"sources"`
 }
@@ -34,6 +96,7 @@ type Catalog struct {
 	SchemaVersion string           `json:"schema_version"`
 	ID            string           `json:"id"`
 	Version       string           `json:"version"`
+	Kubernetes    VersionContract  `json:"kubernetes"`
 	Rules         []RuleDefinition `json:"rules"`
 }
 
@@ -65,68 +128,87 @@ var slsaSource = SourceReference{
 	Relationship: RelationshipSupplemental,
 }
 
+var allOS = []WorkloadOS{OSLinux, OSWindows}
+var linuxOnly = []WorkloadOS{OSLinux}
+
 var defaultCatalog = Catalog{
 	SchemaVersion: "1",
 	ID:            "clusterproof-default",
-	Version:       "1.0.0",
+	Version:       "1.1.0",
+	Kubernetes: VersionContract{
+		KubernetesMinor: "1.36",
+		SupportedMinors: []string{"1.34", "1.35", "1.36"},
+	},
 	Rules: []RuleDefinition{
 		{
 			ID: "CP-K8S-001", Title: "Privileged container", Category: "kubernetes-posture",
+			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-002", Title: "Host namespace sharing enabled", Category: "kubernetes-posture",
+			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-003", Title: "Host filesystem mounted into workload", Category: "kubernetes-posture",
+			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Restricted"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-004", Title: "Privilege escalation is not disabled", Category: "kubernetes-posture",
+			OS:          linuxOnly,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Restricted"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-005", Title: "Non-root execution is not guaranteed", Category: "kubernetes-posture",
+			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Restricted"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-006", Title: "Seccomp isolation is not enforced", Category: "kubernetes-posture",
+			OS:          linuxOnly,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Restricted"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-007", Title: "Additional Linux capabilities requested", Category: "kubernetes-posture",
+			OS:          linuxOnly,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Restricted"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-008", Title: "Default Linux capabilities are not dropped", Category: "kubernetes-posture",
+			OS:          linuxOnly,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Restricted"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-009", Title: "Container root filesystem is writable", Category: "kubernetes-posture",
+			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:Application-Checklist"},
 			Sources:     []SourceReference{applicationChecklistSource},
 		},
 		{
 			ID: "CP-K8S-010", Title: "Service account token is automatically mounted", Category: "kubernetes-posture",
+			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:Security-Checklist"},
 			Sources:     []SourceReference{securityChecklistSource},
 		},
 		{
 			ID: "CP-SUPPLY-001", Title: "Container image uses a mutable latest tag", Category: "supply-chain",
+			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC7", "SLSA:Provenance"},
 			Sources:     []SourceReference{slsaSource},
 		},
 		{
 			ID: "CP-SUPPLY-002", Title: "Container image is not digest pinned", Category: "supply-chain",
+			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC7", "SLSA:Provenance"},
 			Sources:     []SourceReference{slsaSource},
 		},
@@ -136,9 +218,11 @@ var defaultCatalog = Catalog{
 // DefaultCatalog returns an independent copy of the built-in native ruleset.
 func DefaultCatalog() Catalog {
 	result := defaultCatalog
+	result.Kubernetes.SupportedMinors = append([]string(nil), defaultCatalog.Kubernetes.SupportedMinors...)
 	result.Rules = make([]RuleDefinition, len(defaultCatalog.Rules))
 	for index, rule := range defaultCatalog.Rules {
 		result.Rules[index] = rule
+		result.Rules[index].OS = append([]WorkloadOS(nil), rule.OS...)
 		result.Rules[index].ControlRefs = append([]string(nil), rule.ControlRefs...)
 		result.Rules[index].Sources = append([]SourceReference(nil), rule.Sources...)
 	}
