@@ -12,18 +12,32 @@ the acquisition channel.
 
 ## Edition Boundary
 
+The boundary is architectural, not a feature list: Community is local,
+single-target, and stateless; Team is centralized, multi-target, and
+stateful; Enterprise is regulated operations. Community keeps gaining local
+capabilities (deterministic diff, repository exceptions, signed evidence)
+without eroding the boundary, because a local CLI structurally cannot hold
+central state. In one line: Community makes one scan trustworthy, Team makes
+a hundred scans manageable, Enterprise makes them operable in front of an
+auditor.
+
 | Capability | Community (Apache-2.0) | Team | Enterprise |
 | --- | --- | --- | --- |
 | Offline manifest and PSS-oriented checks | Included | Included | Included |
-| Read-only scan of one cluster/context per invocation | Included | Included | Included |
+| Read-only scan of one cluster/context per invocation, with opt-in scope packs | Included | Included | Included |
 | Trivy enrichment and image integrity checks | Included | Included | Included |
-| Versioned native catalog and bounded PolicyReport import | Included | Included | Included |
-| JSON, SARIF, verifiable one-run evidence bundle | Included | Included | Included |
+| Versioned native catalog and bounded PolicyReport/OpenReports import | Included | Included | Included |
+| JSON, SARIF, verifiable one-run evidence bundle (including local signing) | Included | Included | Included |
 | CI severity threshold | Included | Included | Included |
+| Local two-snapshot diff (`compare`) | Included | Included | Included |
+| Repository-owned exception file with owner/reason/expiry | Included | Included | Included |
+| Supply-chain verification against a local trust policy | Included | Included | Included |
+| Retained scan history and cross-release posture trends | — | Included | Included |
+| Central waiver approval workflow and audit trail | — | Included | Included |
 | Organization policy distribution and pinning | — | Included | Included |
-| Baselines and finding diff across releases | — | Included | Included |
-| Time-bound waiver workflow with owner/reason | — | Included | Included |
+| Organization baselines across repositories and clusters | — | Included | Included |
 | Evidence history and multi-cluster rollup | — | Included | Included |
+| Organization signing-key management and signer policy distribution | — | Included | Included |
 | Auditor export templates, OSCAL transform, and licensed/custom control map | — | Included | Included |
 | SSO/RBAC/immutable audit log | — | — | Included |
 | Air-gapped license and private policy distribution | — | — | Included |
@@ -47,6 +61,11 @@ Pricing is annual to match security and compliance budgets:
 
 Avoid per-seat pricing at first. Cluster/repository limits align price with the
 surface being protected and do not discourage security participation.
+
+The Team entry price is a hypothesis, not a commitment: validate it against
+the first two pilots. Security budgets sometimes reject sub-USD-5,000 line
+items as not worth an approval cycle; if pilots show that pattern, raise the
+entry tier rather than discounting the engagement fee.
 
 ## Service-Led Revenue
 
