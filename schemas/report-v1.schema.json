@@ -19,6 +19,16 @@
         "rules_evaluated": { "type": "integer", "minimum": 1 }
       }
     },
+    "assessment": {
+      "description": "Added in v0.4 as an optional field; distinguishes an assessed scan from one that found no supported workloads.",
+      "type": "object",
+      "required": ["status", "inputs_scanned", "workloads_assessed"],
+      "properties": {
+        "status": { "enum": ["assessed", "no_workloads_assessed"] },
+        "inputs_scanned": { "type": "integer", "minimum": 0 },
+        "workloads_assessed": { "type": "integer", "minimum": 0 }
+      }
+    },
     "inputs": {
       "type": "array",
       "items": {

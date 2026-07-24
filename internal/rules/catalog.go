@@ -86,9 +86,21 @@ type RuleDefinition struct {
 	ID          string            `json:"id"`
 	Title       string            `json:"title"`
 	Category    string            `json:"category"`
+	Description string            `json:"description"`
+	Remediation string            `json:"remediation"`
 	OS          []WorkloadOS      `json:"os"`
 	ControlRefs []string          `json:"control_refs"`
 	Sources     []SourceReference `json:"sources"`
+}
+
+// FindRule returns the definition for one rule ID.
+func (c Catalog) FindRule(id string) (RuleDefinition, bool) {
+	for _, rule := range c.Rules {
+		if rule.ID == id {
+			return rule, true
+		}
+	}
+	return RuleDefinition{}, false
 }
 
 // CoverageStatus describes how completely a PSS control is evaluated.
@@ -191,114 +203,152 @@ var defaultCatalog = Catalog{
 	Rules: []RuleDefinition{
 		{
 			ID: "CP-K8S-001", Title: "Privileged container", Category: "kubernetes-posture",
+			Description: "Privileged containers bypass major isolation controls and can commonly reach the node.",
+			Remediation: "Set securityContext.privileged: false and grant only the specific capability required.",
 			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-002", Title: "Host namespace sharing enabled", Category: "kubernetes-posture",
+			Description: "Sharing host namespaces weakens workload isolation and can expose node-level processes or networking.",
+			Remediation: "Disable hostNetwork, hostPID, and hostIPC unless the workload has a reviewed infrastructure exception.",
 			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-003", Title: "Host filesystem mounted into workload", Category: "kubernetes-posture",
+			Description: "A hostPath volume can expose node files and turn a container compromise into a node compromise.",
+			Remediation: "Replace hostPath with a restricted volume type or document and enforce a narrow exception.",
 			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Restricted"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-004", Title: "Privilege escalation is not disabled", Category: "kubernetes-posture",
+			Description: "The container may gain more privileges than its parent process.",
+			Remediation: "Set securityContext.allowPrivilegeEscalation: false.",
 			OS:          linuxOnly,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Restricted"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-005", Title: "Non-root execution is not guaranteed", Category: "kubernetes-posture",
+			Description: "Root execution increases the impact of a container escape or writable filesystem weakness.",
+			Remediation: "Set runAsNonRoot: true and use a non-zero runAsUser where the image requires an explicit UID.",
 			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Restricted"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-006", Title: "Seccomp isolation is not enforced", Category: "kubernetes-posture",
+			Description: "A missing or unconfined seccomp profile leaves unnecessary kernel syscalls available.",
+			Remediation: "Set seccompProfile.type to RuntimeDefault or a reviewed Localhost profile.",
 			OS:          linuxOnly,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Restricted"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-007", Title: "Additional Linux capabilities requested", Category: "kubernetes-posture",
+			Description: "Powerful Linux capabilities can provide host-level actions without a fully privileged container.",
+			Remediation: "Remove added capabilities; if required, allow only NET_BIND_SERVICE after review.",
 			OS:          linuxOnly,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Restricted"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-008", Title: "Default Linux capabilities are not dropped", Category: "kubernetes-posture",
+			Description: "The runtime capability set is broader than most applications require.",
+			Remediation: "Set securityContext.capabilities.drop to [ALL], then add back only reviewed requirements.",
 			OS:          linuxOnly,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Restricted"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-009", Title: "Container root filesystem is writable", Category: "kubernetes-posture",
+			Description: "A writable image filesystem gives an attacker persistence space inside the running container.",
+			Remediation: "Set readOnlyRootFilesystem: true and mount explicit writable volumes where required.",
 			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:Application-Checklist"},
 			Sources:     []SourceReference{applicationChecklistSource},
 		},
 		{
 			ID: "CP-K8S-010", Title: "Service account token is automatically mounted", Category: "kubernetes-posture",
+			Description: "An unnecessary Kubernetes API credential increases the impact of a container compromise.",
+			Remediation: "Set automountServiceAccountToken: false unless the workload calls the Kubernetes API.",
 			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:Security-Checklist"},
 			Sources:     []SourceReference{securityChecklistSource},
 		},
 		{
 			ID: "CP-K8S-011", Title: "Host port binding requested", Category: "kubernetes-posture",
+			Description: "Host ports bind the workload to node network interfaces and bypass Service-level controls.",
+			Remediation: "Remove hostPort and expose the workload through a Service or ingress controller.",
 			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-012", Title: "Volume type outside the restricted allowlist", Category: "kubernetes-posture",
+			Description: "The Restricted profile allows only a fixed set of volume types; other drivers can reach node or network resources.",
+			Remediation: "Use configMap, csi, downwardAPI, emptyDir, ephemeral, persistentVolumeClaim, projected, or secret volumes.",
 			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Restricted"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-013", Title: "Non-default proc mount requested", Category: "kubernetes-posture",
+			Description: "An unmasked /proc filesystem exposes sensitive kernel interfaces to the container.",
+			Remediation: "Remove procMount or set it to Default.",
 			OS:          linuxOnly,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-014", Title: "Sysctl outside the safe allowlist requested", Category: "kubernetes-posture",
+			Description: "Sysctls can disable security mechanisms or affect every workload on the node.",
+			Remediation: "Remove the sysctl or keep only entries from the Kubernetes safe sysctl allowlist.",
 			OS:          linuxOnly,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-015", Title: "AppArmor profile is overridden to an unconfined state", Category: "kubernetes-posture",
+			Description: "Disabling AppArmor removes a mandatory access-control layer expected by the Baseline profile.",
+			Remediation: "Set appArmorProfile.type to RuntimeDefault or a reviewed Localhost profile, or remove the override.",
 			OS:          linuxOnly,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-016", Title: "Disallowed SELinux options requested", Category: "kubernetes-posture",
+			Description: "Custom SELinux users, roles, or types can escape the container security domain.",
+			Remediation: "Remove seLinuxOptions.user and role, and keep type unset or one of the allowed container types.",
 			OS:          linuxOnly,
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-K8S-017", Title: "Windows HostProcess pod requested", Category: "kubernetes-posture",
+			Description: "HostProcess containers run directly on the Windows host and are equivalent to privileged access.",
+			Remediation: "Set windowsOptions.hostProcess to false unless the workload has a reviewed infrastructure exception.",
 			OS:          []WorkloadOS{OSWindows},
 			ControlRefs: []string{"SOC2:CC6", "Kubernetes:PSS-Baseline"},
 			Sources:     []SourceReference{pssSource},
 		},
 		{
 			ID: "CP-SUPPLY-001", Title: "Container image uses a mutable latest tag", Category: "supply-chain",
+			Description: "A mutable tag can resolve to different content without a manifest change or review.",
+			Remediation: "Pin the image to an immutable sha256 digest produced by the trusted build pipeline.",
 			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC7", "SLSA:Provenance"},
 			Sources:     []SourceReference{slsaSource},
 		},
 		{
 			ID: "CP-SUPPLY-002", Title: "Container image is not digest pinned", Category: "supply-chain",
+			Description: "Tags are mutable and do not prove which image bytes were reviewed and deployed.",
+			Remediation: "Replace the tag with the verified image digest while retaining the tag in deployment metadata if useful.",
 			OS:          allOS,
 			ControlRefs: []string{"SOC2:CC7", "SLSA:Provenance"},
 			Sources:     []SourceReference{slsaSource},

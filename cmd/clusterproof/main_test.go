@@ -467,3 +467,74 @@ func TestRunScanMalformedExceptionFileFailsClosed(t *testing.T) {
 		t.Fatalf("exit code = %d, stderr = %q; malformed exception file must fail the scan", code, stderr.String())
 	}
 }
+
+func TestRunExplainShowsRuleMetadata(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"explain", "CP-K8S-001"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr=%s", code, stderr.String())
+	}
+	output := stdout.String()
+	for _, expected := range []string{
+		"CP-K8S-001", "Privileged container", "Remediation", "SOC2:CC6",
+		"Kubernetes Pod Security Standards", "https://",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("explain output missing %q:\n%s", expected, output)
+		}
+	}
+}
+
+func TestRunExplainUnknownRuleFails(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"explain", "CP-DOES-NOT-EXIST"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 1 || !strings.Contains(stderr.String(), "unknown rule") {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
+	}
+}
+
+func TestRunScanMarksEmptyInputAsNotAssessed(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "cm.yaml"), []byte("apiVersion: v1\nkind: ConfigMap\nmetadata: {name: cm}\n"), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"scan", root, "--format", "json"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr=%s", code, stderr.String())
+	}
+	var scan model.Report
+	if err := json.Unmarshal(stdout.Bytes(), &scan); err != nil {
+		t.Fatalf("invalid JSON output: %v\n%s", err, stdout.String())
+	}
+	if scan.Assessment == nil || scan.Assessment.Status != model.AssessmentStatusNoWorkloads {
+		t.Fatalf("assessment = %#v, want no_workloads_assessed", scan.Assessment)
+	}
+	if scan.Assessment.WorkloadsAssessed != 0 || scan.Assessment.InputsScanned != 1 {
+		t.Fatalf("assessment counters wrong: %#v", scan.Assessment)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"scan", root}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 || !strings.Contains(stdout.String(), "not a clean security result") {
+		t.Fatalf("table output does not warn about empty assessment:\n%s", stdout.String())
+	}
+}
+
+func TestRunScanMarksAssessedWorkloads(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"scan", "./../../testdata/secure", "--format", "json"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr=%s", code, stderr.String())
+	}
+	var scan model.Report
+	if err := json.Unmarshal(stdout.Bytes(), &scan); err != nil {
+		t.Fatalf("invalid JSON output: %v\n%s", err, stdout.String())
+	}
+	if scan.Assessment == nil || scan.Assessment.Status != model.AssessmentStatusAssessed ||
+		scan.Assessment.WorkloadsAssessed == 0 {
+		t.Fatalf("assessment = %#v, want assessed with workloads", scan.Assessment)
+	}
+}

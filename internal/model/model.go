@@ -105,6 +105,26 @@ type RulesetReference struct {
 	RulesEvaluated int    `json:"rules_evaluated"`
 }
 
+// Assessment distinguishes a genuinely clean scan from one that had
+// nothing to assess, so empty or unsupported input can never present
+// itself as a passing security result.
+type Assessment struct {
+	// Status is "assessed" when at least one workload was evaluated and
+	// "no_workloads_assessed" otherwise.
+	Status string `json:"status"`
+	// InputsScanned counts the files or streams that were read.
+	InputsScanned int `json:"inputs_scanned"`
+	// WorkloadsAssessed counts normalized workloads evaluated by rules.
+	WorkloadsAssessed int `json:"workloads_assessed"`
+}
+
+// AssessmentStatusAssessed marks a scan that evaluated at least one workload.
+const AssessmentStatusAssessed = "assessed"
+
+// AssessmentStatusNoWorkloads marks a scan whose input contained no
+// supported workload; its empty finding list is not a clean result.
+const AssessmentStatusNoWorkloads = "no_workloads_assessed"
+
 // Report is the canonical output consumed by every reporter.
 type Report struct {
 	SchemaVersion string            `json:"schema_version"`
@@ -112,8 +132,10 @@ type Report struct {
 	Target        string            `json:"target"`
 	ToolVersion   string            `json:"tool_version"`
 	Ruleset       *RulesetReference `json:"ruleset,omitempty"`
-	Inputs        []Input           `json:"inputs"`
-	Findings      []Finding         `json:"findings"`
+	// Assessment is additive; it is populated by v0.4 and later scans.
+	Assessment *Assessment `json:"assessment,omitempty"`
+	Inputs     []Input     `json:"inputs"`
+	Findings   []Finding   `json:"findings"`
 	// Suppressed lists findings hidden by reviewed repository exceptions.
 	// The field is additive and omitted when no exception file is used, so
 	// existing schema-version 1 consumers continue to decode reports.

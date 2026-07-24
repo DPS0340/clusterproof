@@ -63,6 +63,16 @@ malformed file fails the whole scan. Suppressed finding identities stay in
 the report under `suppressed_findings`, so evidence never hides what was
 waived or by whom.
 
+Understand any rule before fixing or waiving it:
+
+```bash
+clusterproof explain CP-K8S-006
+```
+
+Reports also carry an `assessment` object. A scan whose input contained no
+supported workload reports `no_workloads_assessed`, so an empty or
+unsupported input can never look like a clean security result.
+
 Read-only live cluster scan:
 
 ```bash

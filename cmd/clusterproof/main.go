@@ -64,11 +64,70 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return runEvidence(args[1:], stdout, stderr)
 	case "ruleset":
 		return runRuleset(args[1:], stdout, stderr)
+	case "explain":
+		return runExplain(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
 		printUsage(stderr)
 		return 1
 	}
+}
+
+func runExplain(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
+		printExplainUsage(stdout)
+		return 0
+	}
+	if len(args) != 1 || strings.HasPrefix(args[0], "-") {
+		fmt.Fprintln(stderr, "clusterproof: explain requires exactly one RULE_ID")
+		printExplainUsage(stderr)
+		return 1
+	}
+
+	catalog := rules.DefaultCatalog()
+	rule, found := catalog.FindRule(args[0])
+	if !found {
+		fmt.Fprintf(stderr, "clusterproof: unknown rule %q; run \"clusterproof ruleset show\" for the catalog\n", args[0])
+		return 1
+	}
+
+	osNames := make([]string, 0, len(rule.OS))
+	for _, os := range rule.OS {
+		osNames = append(osNames, string(os))
+	}
+	fmt.Fprintf(stdout, "%s: %s\n\n", rule.ID, rule.Title)
+	fmt.Fprintf(stdout, "Category:     %s\n", rule.Category)
+	fmt.Fprintf(stdout, "Applies to:   %s workloads\n", strings.Join(osNames, " and "))
+	fmt.Fprintf(stdout, "Ruleset:      %s %s (Kubernetes %s)\n\n", catalog.ID, catalog.Version, catalog.Kubernetes.KubernetesMinor)
+	fmt.Fprintf(stdout, "Why it matters:\n  %s\n\n", rule.Description)
+	fmt.Fprintf(stdout, "Remediation:\n  %s\n\n", rule.Remediation)
+	fmt.Fprintln(stdout, "Control references:")
+	for _, reference := range rule.ControlRefs {
+		fmt.Fprintf(stdout, "  - %s\n", reference)
+	}
+	fmt.Fprintln(stdout, "\nSources:")
+	for _, source := range rule.Sources {
+		fmt.Fprintf(stdout, "  - %s %s (%s)\n    %s\n", source.Name, source.Version, source.Relationship, source.URL)
+	}
+	for _, coverage := range catalog.Coverage {
+		for _, ruleID := range coverage.RuleIDs {
+			if ruleID != rule.ID {
+				continue
+			}
+			fmt.Fprintf(stdout, "\nPSS coverage: %s / %s (%s)\n", coverage.Profile, coverage.Control, coverage.Status)
+			if coverage.Note != "" {
+				fmt.Fprintf(stdout, "  Note: %s\n", coverage.Note)
+			}
+		}
+	}
+	return 0
+}
+
+func printExplainUsage(writer io.Writer) {
+	fmt.Fprintln(writer, `Usage:
+  clusterproof explain RULE_ID
+
+Shows the source, scope, rationale, and remediation for one native rule.`)
 }
 
 func runEvidence(args []string, stdout, stderr io.Writer) int {
@@ -272,12 +331,22 @@ func runScan(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 
 	rulesetReference := rules.DefaultCatalog().Reference()
+	assessmentStatus := model.AssessmentStatusAssessed
+	if len(loaded.Workloads) == 0 {
+		assessmentStatus = model.AssessmentStatusNoWorkloads
+	}
+	assessment := model.Assessment{
+		Status:            assessmentStatus,
+		InputsScanned:     len(loaded.Inputs),
+		WorkloadsAssessed: len(loaded.Workloads),
+	}
 	scan := model.Report{
 		SchemaVersion: "1",
 		GeneratedAt:   time.Now().UTC(),
 		Target:        scanTarget,
 		ToolVersion:   version,
 		Ruleset:       &rulesetReference,
+		Assessment:    &assessment,
 		Inputs:        loaded.Inputs,
 		Findings:      findings,
 		Suppressed:    suppressed,
@@ -469,6 +538,7 @@ Usage:
   clusterproof scan [flags] --kubeconfig PATH
   clusterproof evidence verify DIR
   clusterproof ruleset show [--format table|json]
+  clusterproof explain RULE_ID
   clusterproof version
 
 Run "clusterproof scan --help" for scan flags.`)

@@ -62,6 +62,16 @@ func Table(writer io.Writer, report model.Report) error {
 			"Suppressed by reviewed exceptions: %d (identities recorded in the report)\n",
 			len(report.Suppressed),
 		)
+		if err != nil {
+			return err
+		}
+	}
+	if report.Assessment != nil && report.Assessment.Status == model.AssessmentStatusNoWorkloads {
+		_, err = fmt.Fprintf(
+			writer,
+			"Assessment: no supported workloads were found in %d input(s); this is not a clean security result.\n",
+			report.Assessment.InputsScanned,
+		)
 	}
 	return err
 }

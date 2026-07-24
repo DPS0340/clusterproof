@@ -79,6 +79,9 @@ func TestDefaultCatalogCoversEveryNativeFinding(t *testing.T) {
 		if definition.Title != finding.Title || !reflect.DeepEqual(definition.ControlRefs, finding.ControlRefs) {
 			t.Fatalf("catalog metadata drift for %s: definition=%#v finding=%#v", finding.ID, definition, finding)
 		}
+		if definition.Description != finding.Description || definition.Remediation != finding.Remediation {
+			t.Fatalf("catalog description/remediation drift for %s", finding.ID)
+		}
 	}
 }
 
@@ -91,7 +94,8 @@ func TestDefaultCatalogHasVersionedOfficialSources(t *testing.T) {
 		t.Fatal("catalog has no rules")
 	}
 	for _, rule := range catalog.Rules {
-		if rule.Title == "" || rule.Category == "" || len(rule.ControlRefs) == 0 || len(rule.Sources) == 0 || len(rule.OS) == 0 {
+		if rule.Title == "" || rule.Category == "" || rule.Description == "" || rule.Remediation == "" ||
+			len(rule.ControlRefs) == 0 || len(rule.Sources) == 0 || len(rule.OS) == 0 {
 			t.Fatalf("incomplete rule definition: %#v", rule)
 		}
 		for _, os := range rule.OS {
