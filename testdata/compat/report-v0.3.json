@@ -1,0 +1,51 @@
+{
+  "schema_version": "1",
+  "generated_at": "2026-03-01T09:00:00Z",
+  "target": "./deploy",
+  "tool_version": "0.3.0",
+  "ruleset": {
+    "id": "clusterproof-default",
+    "version": "1.0.0",
+    "rules_evaluated": 12
+  },
+  "inputs": [
+    {
+      "path": "deploy/api.yaml",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bytes": 512
+    }
+  ],
+  "findings": [
+    {
+      "id": "CP-K8S-001",
+      "severity": "critical",
+      "title": "Privileged container",
+      "description": "Privileged containers bypass major isolation controls and can commonly reach the node.",
+      "remediation": "Set securityContext.privileged: false and grant only the specific capability required.",
+      "source": "clusterproof",
+      "target": "payments/Deployment/api",
+      "location": {
+        "path": "deploy/api.yaml",
+        "document": 1,
+        "line": 12,
+        "resource": "Deployment/api",
+        "container": "api"
+      },
+      "evidence": {
+        "observed": "privileged: true",
+        "expected": "privileged: false"
+      },
+      "control_refs": ["SOC2:CC6", "Kubernetes:PSS-Baseline"],
+      "external_refs": {
+        "guidance": "https://kubernetes.io/docs/concepts/security/pod-security-standards/"
+      }
+    }
+  ],
+  "summary": {
+    "critical": 1,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "info": 0
+  }
+}

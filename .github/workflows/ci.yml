@@ -28,3 +28,33 @@ jobs:
         run: go test ./...
       - name: Build
         run: go build ./...
+      - name: Validate contract fixtures against schemas
+        run: |
+          python3 -m venv /tmp/schema-venv
+          /tmp/schema-venv/bin/pip install --quiet 'jsonschema==4.*'
+          /tmp/schema-venv/bin/python - <<'EOF'
+          import json, glob
+          from jsonschema import Draft202012Validator
+
+          schema = json.load(open('schemas/report-v1.schema.json'))
+          Draft202012Validator.check_schema(schema)
+          validator = Draft202012Validator(schema)
+          for fixture in sorted(glob.glob('testdata/compat/report-*.json')):
+              validator.validate(json.load(open(fixture)))
+              print(f'{fixture}: valid')
+
+          exceptions_schema = json.load(open('schemas/exceptions-v1.schema.json'))
+          Draft202012Validator.check_schema(exceptions_schema)
+          print('exceptions schema: valid')
+          EOF
+      - name: Validate live scan output against the report schema
+        run: |
+          go run ./cmd/clusterproof scan ./testdata/insecure --format json > /tmp/report.json
+          /tmp/schema-venv/bin/python - <<'EOF'
+          import json
+          from jsonschema import Draft202012Validator
+
+          schema = json.load(open('schemas/report-v1.schema.json'))
+          Draft202012Validator(schema).validate(json.load(open('/tmp/report.json')))
+          print('live report: valid')
+          EOF
