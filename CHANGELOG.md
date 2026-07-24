@@ -4,6 +4,60 @@ All notable changes to ClusterProof are documented here.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-24
+
+### Added
+
+- Opt-in cluster scope packs via `--cluster-scopes`: `workloads` (default),
+  `namespaces`, `rbac`, and `network`, each one fixed, versioned read-only
+  `kubectl get`. Authorization denial or an absent resource type is recorded
+  in the additive `cluster_scopes` report field as `denied`/`absent` partial
+  assessment; operational failures still abort the scan.
+- Namespace Pod Security Admission assessment (catalog rules CP-K8S-018
+  through CP-K8S-022): missing enforce level, undefined levels, explicit
+  privileged profile, unpinned or `latest` policy versions, and audit/warn
+  modes weaker than enforce. Control-plane namespaces are excluded as an
+  operator decision.
+- Bounded RBAC privilege-path analysis (CP-RBAC-001 through CP-RBAC-007):
+  wildcard grants, Secrets read access, workload creation, `pods/exec`,
+  impersonation, bind/escalate, and service-account token minting, each
+  identifying the exact subject-to-role path. Roles resolve within their own
+  namespace only and dangling references are skipped.
+- NetworkPolicy and exposure analysis (CP-NET-001, CP-NET-002): namespaces
+  running workloads without all-pod default-deny coverage per direction, and
+  NodePort/LoadBalancer Services selecting host-namespace or privileged
+  workloads. Findings describe declared policy objects only and never claim
+  effective packet filtering.
+- Deterministic `clusterproof compare BEFORE AFTER` classifying findings as
+  new, resolved, severity-changed, or unchanged with both input hashes;
+  incompatible schema or ruleset versions fail with a migration-oriented
+  error, and exit code 2 gates CI on new or escalated findings.
+- Experimental `openreports.io/v1alpha1` adapter via `--openreports-json`
+  with a recorded adapter version and the same boundedness and
+  no-policy-execution guarantees as the PolicyReport adapter.
+- A 5,000-workload performance gate: parsing plus evaluation completes in
+  roughly 0.1 seconds using about 102 MiB of heap on reference hardware
+  (Apple M-series), within the documented 10-second / 512 MiB budget.
+
+### Changed
+
+- Catalog version is 1.4.0. Native rules now span workload posture,
+  namespace admission, RBAC, network, and supply-chain categories.
+
+### Permissions
+
+- The default cluster scan still requires only `list` on workload resources.
+  Optional scopes add `list` on: namespaces (`namespaces`); roles,
+  clusterroles, rolebindings, clusterrolebindings (`rbac`); networkpolicies
+  and services (`network`). No scope requests Secrets, ConfigMap payloads,
+  logs, events, or any mutation.
+
+### Compatibility
+
+- Report schema stays at version 1; `cluster_scopes` is additive and omitted
+  for repository scans. v0.3/v0.4 JSON consumers decode v0.5 reports
+  unchanged.
+
 ## [0.4.0] - 2026-07-24
 
 ### Added

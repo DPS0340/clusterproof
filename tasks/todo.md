@@ -399,9 +399,9 @@ objects behind an explicit experimental adapter.
 the attack-surface milestone.
 
 **Acceptance criteria:**
-- [ ] A 5,000-workload reference fixture stays under 10 seconds and 512 MiB on documented hardware.
-- [ ] Missing permissions and resource limits produce complete partial-assessment evidence.
-- [ ] Release documentation lists the additional Kubernetes read permissions.
+- [x] A 5,000-workload reference fixture stays under 10 seconds and 512 MiB on documented hardware.
+- [x] Missing permissions and resource limits produce complete partial-assessment evidence.
+- [x] Release documentation lists the additional Kubernetes read permissions.
 
 **Verification:**
 - [ ] Benchmarks, fuzz/abuse tests, race, vet, static analysis, and builds pass.

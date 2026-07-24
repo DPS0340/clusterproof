@@ -152,14 +152,14 @@ control-plane implementation must not begin before Task 41 is complete.
 - [x] Task 30: Add NetworkPolicy and workload-exposure analysis.
 - [x] Task 31: Add deterministic two-snapshot comparison.
 - [x] Task 32: Add an experimental bounded OpenReports adapter.
-- [ ] Task 33: Performance-test and release v0.5.
+- [x] Task 33: Performance-test and release v0.5.
 
 ### Checkpoint: Broader read-only cluster posture
 
-- [ ] Every Kubernetes request remains a fixed, tested read.
-- [ ] Missing permissions never appear as a successful assessment.
-- [ ] No Secret or ConfigMap payload, log, event, or mutation is requested.
-- [ ] A 5,000-workload fixture stays within the published resource budget.
+- [x] Every Kubernetes request remains a fixed, tested read.
+- [x] Missing permissions never appear as a successful assessment.
+- [x] No Secret or ConfigMap payload, log, event, or mutation is requested.
+- [x] A 5,000-workload fixture stays within the published resource budget.
 
 ### Phase 8: v0.6 Verifiable Supply Chain
 
