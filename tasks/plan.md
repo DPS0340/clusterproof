@@ -169,14 +169,14 @@ control-plane implementation must not begin before Task 41 is complete.
 - [x] Task 37: Verify SLSA v1.2 provenance against exact subjects.
 - [x] Task 38: Import bounded SPDX/CycloneDX SBOM and VEX data.
 - [x] Task 39: Sign and authenticate evidence manifests.
-- [ ] Task 40: Abuse-test offline and networked modes and release v0.6.
+- [x] Task 40: Abuse-test offline and networked modes and release v0.6.
 
 ### Checkpoint: Cryptographic evidence
 
-- [ ] Floating tags alone can never satisfy signature or provenance policy.
-- [ ] Every network request is opt-in and represented in evidence.
-- [ ] Offline verification works from self-contained bundles.
-- [ ] Wrong identities, issuers, subjects, builders, and expired material fail.
+- [x] Floating tags alone can never satisfy signature or provenance policy.
+- [x] Every network request is opt-in and represented in evidence.
+- [x] Offline verification works from self-contained bundles.
+- [x] Wrong identities, issuers, subjects, builders, and expired material fail.
 
 ### Phase 9 Gate: Commercial Discovery
 

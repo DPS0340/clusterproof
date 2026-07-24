@@ -524,13 +524,13 @@ manifest while retaining unsigned integrity verification.
 **Description:** Validate the full supply-chain mode matrix and release v0.6.
 
 **Acceptance criteria:**
-- [ ] Offline mode makes no network request and rejects missing remote material explicitly.
-- [ ] Every online request is opt-in, bounded, allowlisted, and represented in evidence.
-- [ ] Rollback to the previous supported release preserves readable evidence.
+- [x] Offline mode makes no network request and rejects missing remote material explicitly.
+- [x] Every online request is opt-in, bounded, allowlisted, and represented in evidence.
+- [x] Rollback to the previous supported release preserves readable evidence.
 
 **Verification:**
-- [ ] Network-denial, malicious-registry, forged-attestation, fuzz, race, vet, static analysis, and build checks pass.
-- [ ] Release archives and a fresh Krew installation report v0.6.
+- [x] Network-denial, malicious-registry, forged-attestation, fuzz, race, vet, static analysis, and build checks pass.
+- [x] Release archives and a fresh Krew installation report v0.6.
 
 **Dependencies:** Tasks 34-39
 **Files likely touched:** `internal/*`, `testdata/*`, `.github/*`, `docs/*`, `deploy/krew/*`

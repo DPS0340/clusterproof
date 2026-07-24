@@ -202,6 +202,56 @@ experimental notice on use. Semantics match the PolicyReport adapter:
 bounded input, result outcomes only, no CRD installation, no policy-code
 execution, and producer messages are never rendered.
 
+## Supply-chain verification
+
+Supply-chain features follow one rule: every network request is opt-in,
+bounded, and recorded, and offline modes make no network request at all.
+
+Pin what you trust in a data-only policy, then inspect it:
+
+```bash
+clusterproof trust show --format json trust-policy.yaml
+```
+
+A trust policy pins keyless certificate identities (subject and OIDC
+issuer are both required — an identity without an issuer is rejected),
+PEM public keys, SLSA builder and source expectations, and an explicit
+attestation predicate-type allowlist where an empty list accepts nothing.
+Policies never contain private key material.
+
+Export an offline image inventory:
+
+```bash
+clusterproof image inventory ./deploy
+```
+
+Signature verification runs a caller-installed cosign binary with fixed
+arguments and no shell. A floating tag alone can never satisfy signature
+or provenance policy: references must be digest pinned first. Offline
+verification requires a Sigstore bundle and never makes a hidden network
+request; online transparency-log lookups require explicit opt-in and are
+recorded in the verification result. SLSA v1 provenance verification binds
+the attestation subject to the exact image digest and checks builder and
+source only against the pinned policy, distinguishing missing, invalid,
+and policy-mismatched provenance.
+
+SBOM import accepts bounded SPDX 2.2/2.3 and CycloneDX 1.4–1.6 JSON and
+always carries the notice that an inventory is not a vulnerability
+assessment. OpenVEX import requires exact vulnerability and product
+identity; only `not_affected` (with justification) and `fixed` can
+suppress, and stale statements never suppress anything.
+
+Sign and authenticate evidence bundles with your own Ed25519 key:
+
+```bash
+clusterproof evidence sign evidence-dir --key signer.key --signer release@example.com
+clusterproof evidence verify evidence-dir --signer-key signer.pub
+```
+
+Verification reports integrity and authenticity separately: a bundle's
+embedded key never proves who signed it — only a `--signer-key` you pin
+out of band does. ClusterProof never generates or stores private keys.
+
 Explicit Trivy enrichment:
 
 ```bash

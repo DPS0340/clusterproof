@@ -4,6 +4,54 @@ All notable changes to ClusterProof are documented here.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-24
+
+### Added
+
+- Data-only supply-chain trust policy (`clusterproof trust show`) pinning
+  keyless identities (subject and OIDC issuer both required), PEM public
+  keys, SLSA builder/source expectations, and an explicit predicate-type
+  allowlist where an empty list accepts nothing. Private key material and
+  unknown fields fail closed; a JSON Schema documents the contract.
+- Deterministic offline image inventory (`clusterproof image inventory`)
+  and explicit tag-to-digest resolution requiring a registry allowlist,
+  performing one anonymous bounded HEAD request, never storing credentials,
+  and recording digest, registry, timestamp, and network use.
+- Sigstore signature verification through a bounded cosign subprocess with
+  fixed arguments and no shell. Floating tags are refused outright, offline
+  mode requires a bundle and makes no network request, empty or unparsable
+  claims count as unverified, and mode, identity, offline state, network
+  use, and failure causes are recorded for evidence.
+- SLSA v1 provenance verification binding the attestation subject to the
+  exact image digest, checking builder and source only against explicit
+  policy pins, and distinguishing verified, missing, invalid, and
+  policy_mismatch outcomes with regression tests for forged subjects and
+  wrong builders/sources.
+- Bounded SPDX 2.2/2.3 and CycloneDX 1.4-1.6 SBOM import with deterministic
+  deduplicated inventories, plus OpenVEX import where a status applies only
+  to an exact vulnerability/product identity, not_affected requires a
+  justification, and stale statements never suppress findings.
+- Evidence manifest signing (`clusterproof evidence sign`) with detached
+  Ed25519 signatures over the exact manifest bytes and caller-provided
+  keys. Verification distinguishes integrity_verified, signature_verified,
+  and unverified; an embedded key never proves authenticity without a
+  pinned `--signer-key`, and verification works fully offline.
+
+### Network and offline guarantees
+
+- Repository scans, inventory export, provenance verification, SBOM/VEX
+  import, and evidence signing/verification make no network request.
+- The only network-capable operations are explicit tag resolution (registry
+  allowlist required) and cosign verification with `AllowNetwork` opt-in;
+  both are recorded in their results.
+
+### Compatibility
+
+- Report schema stays at version 1. The evidence signature file is outside
+  the hashed manifest; the legacy strict `evidence verify` path without
+  `--signer-key` treats it as untracked, preserving pre-0.6 behavior for
+  unsigned bundles, while the signature-aware path accepts and verifies it.
+
 ## [0.5.0] - 2026-07-24
 
 ### Added
