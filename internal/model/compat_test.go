@@ -55,7 +55,41 @@ func TestCurrentReportOmitsNewFieldsWhenUnused(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encode report: %v", err)
 	}
-	if bytes.Contains(encoded, []byte("suppressed_findings")) {
-		t.Fatalf("unused additive field is not omitted: %s", encoded)
+	for _, field := range []string{"suppressed_findings", "assessment", "cluster_scopes"} {
+		if bytes.Contains(encoded, []byte(field)) {
+			t.Fatalf("unused additive field %q is not omitted: %s", field, encoded)
+		}
+	}
+}
+
+// TestCurrentCodeDecodesV06Report proves the v0.6 fixture, which uses every
+// additive field, decodes strictly with current code. This test must keep
+// passing for two consecutive minor releases before v1.0.
+func TestCurrentCodeDecodesV06Report(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "compat", "report-v0.6.json"))
+	if err != nil {
+		t.Fatalf("read v0.6 fixture: %v", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	var report model.Report
+	if err := decoder.Decode(&report); err != nil {
+		t.Fatalf("v0.6 report no longer decodes with strict fields: %v", err)
+	}
+	if report.SchemaVersion != "1" {
+		t.Fatalf("schema version = %q, want 1", report.SchemaVersion)
+	}
+	if report.Assessment == nil || report.Assessment.Status == "" {
+		t.Fatalf("assessment lost: %#v", report.Assessment)
+	}
+	if len(report.Suppressed) == 0 {
+		t.Fatalf("suppressed findings lost: %#v", report.Suppressed)
+	}
+	if len(report.Scopes) != 2 || report.Scopes[1].Status != "denied" {
+		t.Fatalf("cluster scopes lost: %#v", report.Scopes)
+	}
+	if len(report.Findings) == 0 || report.Summary.Critical == 0 {
+		t.Fatalf("findings or summary lost: %d findings, %#v", len(report.Findings), report.Summary)
 	}
 }

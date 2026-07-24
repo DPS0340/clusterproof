@@ -1,0 +1,300 @@
+{
+  "schema_version": "1",
+  "generated_at": "2026-07-24T06:00:00Z",
+  "target": "./testdata/insecure",
+  "tool_version": "0.6.0",
+  "ruleset": {
+    "id": "clusterproof-default",
+    "version": "1.4.0",
+    "rules_evaluated": 33
+  },
+  "assessment": {
+    "status": "assessed",
+    "inputs_scanned": 1,
+    "workloads_assessed": 1
+  },
+  "inputs": [
+    {
+      "path": "testdata/insecure/pod.yaml",
+      "sha256": "cb105e708b4d42843a60b8d526884378f4e603918347632bd2d76338cc6458f9",
+      "bytes": 210
+    }
+  ],
+  "findings": [
+    {
+      "id": "CP-K8S-001",
+      "severity": "critical",
+      "title": "Privileged container",
+      "description": "Privileged containers bypass major isolation controls and can commonly reach the node.",
+      "remediation": "Set securityContext.privileged: false and grant only the specific capability required.",
+      "source": "clusterproof",
+      "target": "demo/Pod/intentionally-insecure",
+      "location": {
+        "path": "testdata/insecure/pod.yaml",
+        "document": 1,
+        "line": 1,
+        "resource": "Pod/intentionally-insecure",
+        "container": "app"
+      },
+      "evidence": {
+        "observed": "privileged: true",
+        "expected": "privileged: false"
+      },
+      "control_refs": [
+        "SOC2:CC6",
+        "Kubernetes:PSS-Baseline"
+      ],
+      "external_refs": {
+        "guidance": "https://kubernetes.io/docs/concepts/security/pod-security-standards/"
+      }
+    },
+    {
+      "id": "CP-K8S-002",
+      "severity": "high",
+      "title": "Host namespace sharing enabled",
+      "description": "Sharing host namespaces weakens workload isolation and can expose node-level processes or networking.",
+      "remediation": "Disable hostNetwork, hostPID, and hostIPC unless the workload has a reviewed infrastructure exception.",
+      "source": "clusterproof",
+      "target": "demo/Pod/intentionally-insecure",
+      "location": {
+        "path": "testdata/insecure/pod.yaml",
+        "document": 1,
+        "line": 1,
+        "resource": "Pod/intentionally-insecure"
+      },
+      "evidence": {
+        "observed": "hostPID",
+        "expected": "host namespaces disabled"
+      },
+      "control_refs": [
+        "SOC2:CC6",
+        "Kubernetes:PSS-Baseline"
+      ],
+      "external_refs": {
+        "guidance": "https://kubernetes.io/docs/concepts/security/pod-security-standards/"
+      }
+    },
+    {
+      "id": "CP-K8S-004",
+      "severity": "high",
+      "title": "Privilege escalation is not disabled",
+      "description": "The container may gain more privileges than its parent process.",
+      "remediation": "Set securityContext.allowPrivilegeEscalation: false.",
+      "source": "clusterproof",
+      "target": "demo/Pod/intentionally-insecure",
+      "location": {
+        "path": "testdata/insecure/pod.yaml",
+        "document": 1,
+        "line": 1,
+        "resource": "Pod/intentionally-insecure",
+        "container": "app"
+      },
+      "evidence": {
+        "observed": "true or implicit default",
+        "expected": "allowPrivilegeEscalation: false"
+      },
+      "control_refs": [
+        "SOC2:CC6",
+        "Kubernetes:PSS-Restricted"
+      ],
+      "external_refs": {
+        "guidance": "https://kubernetes.io/docs/concepts/security/pod-security-standards/"
+      }
+    },
+    {
+      "id": "CP-SUPPLY-001",
+      "severity": "high",
+      "title": "Container image uses a mutable latest tag",
+      "description": "A mutable tag can resolve to different content without a manifest change or review.",
+      "remediation": "Pin the image to an immutable sha256 digest produced by the trusted build pipeline.",
+      "source": "clusterproof",
+      "target": "demo/Pod/intentionally-insecure",
+      "location": {
+        "path": "testdata/insecure/pod.yaml",
+        "document": 1,
+        "line": 1,
+        "resource": "Pod/intentionally-insecure",
+        "container": "app"
+      },
+      "evidence": {
+        "observed": "latest or implicit tag",
+        "expected": "image@sha256:<digest>"
+      },
+      "control_refs": [
+        "SOC2:CC7",
+        "SLSA:Provenance"
+      ],
+      "external_refs": {
+        "guidance": "https://slsa.dev/spec/"
+      }
+    },
+    {
+      "id": "CP-K8S-005",
+      "severity": "medium",
+      "title": "Non-root execution is not guaranteed",
+      "description": "Root execution increases the impact of a container escape or writable filesystem weakness.",
+      "remediation": "Set runAsNonRoot: true and use a non-zero runAsUser where the image requires an explicit UID.",
+      "source": "clusterproof",
+      "target": "demo/Pod/intentionally-insecure",
+      "location": {
+        "path": "testdata/insecure/pod.yaml",
+        "document": 1,
+        "line": 1,
+        "resource": "Pod/intentionally-insecure",
+        "container": "app"
+      },
+      "evidence": {
+        "observed": "non-root policy absent",
+        "expected": "runAsNonRoot: true"
+      },
+      "control_refs": [
+        "SOC2:CC6",
+        "Kubernetes:PSS-Restricted"
+      ],
+      "external_refs": {
+        "guidance": "https://kubernetes.io/docs/concepts/security/pod-security-standards/"
+      }
+    },
+    {
+      "id": "CP-K8S-006",
+      "severity": "medium",
+      "title": "Seccomp isolation is not enforced",
+      "description": "A missing or unconfined seccomp profile leaves unnecessary kernel syscalls available.",
+      "remediation": "Set seccompProfile.type to RuntimeDefault or a reviewed Localhost profile.",
+      "source": "clusterproof",
+      "target": "demo/Pod/intentionally-insecure",
+      "location": {
+        "path": "testdata/insecure/pod.yaml",
+        "document": 1,
+        "line": 1,
+        "resource": "Pod/intentionally-insecure",
+        "container": "app"
+      },
+      "evidence": {
+        "observed": "profile absent",
+        "expected": "RuntimeDefault or Localhost"
+      },
+      "control_refs": [
+        "SOC2:CC6",
+        "Kubernetes:PSS-Restricted"
+      ],
+      "external_refs": {
+        "guidance": "https://kubernetes.io/docs/concepts/security/pod-security-standards/"
+      }
+    },
+    {
+      "id": "CP-K8S-008",
+      "severity": "medium",
+      "title": "Default Linux capabilities are not dropped",
+      "description": "The runtime capability set is broader than most applications require.",
+      "remediation": "Set securityContext.capabilities.drop to [ALL], then add back only reviewed requirements.",
+      "source": "clusterproof",
+      "target": "demo/Pod/intentionally-insecure",
+      "location": {
+        "path": "testdata/insecure/pod.yaml",
+        "document": 1,
+        "line": 1,
+        "resource": "Pod/intentionally-insecure",
+        "container": "app"
+      },
+      "evidence": {
+        "observed": "drop ALL absent",
+        "expected": "capabilities.drop: [ALL]"
+      },
+      "control_refs": [
+        "SOC2:CC6",
+        "Kubernetes:PSS-Restricted"
+      ],
+      "external_refs": {
+        "guidance": "https://kubernetes.io/docs/concepts/security/pod-security-standards/"
+      }
+    },
+    {
+      "id": "CP-K8S-009",
+      "severity": "medium",
+      "title": "Container root filesystem is writable",
+      "description": "A writable image filesystem gives an attacker persistence space inside the running container.",
+      "remediation": "Set readOnlyRootFilesystem: true and mount explicit writable volumes where required.",
+      "source": "clusterproof",
+      "target": "demo/Pod/intentionally-insecure",
+      "location": {
+        "path": "testdata/insecure/pod.yaml",
+        "document": 1,
+        "line": 1,
+        "resource": "Pod/intentionally-insecure",
+        "container": "app"
+      },
+      "evidence": {
+        "observed": "false or implicit default",
+        "expected": "readOnlyRootFilesystem: true"
+      },
+      "control_refs": [
+        "SOC2:CC6",
+        "Kubernetes:Application-Checklist"
+      ],
+      "external_refs": {
+        "guidance": "https://kubernetes.io/docs/concepts/security/pod-security-standards/"
+      }
+    },
+    {
+      "id": "CP-SUPPLY-002",
+      "severity": "medium",
+      "title": "Container image is not digest pinned",
+      "description": "Tags are mutable and do not prove which image bytes were reviewed and deployed.",
+      "remediation": "Replace the tag with the verified image digest while retaining the tag in deployment metadata if useful.",
+      "source": "clusterproof",
+      "target": "demo/Pod/intentionally-insecure",
+      "location": {
+        "path": "testdata/insecure/pod.yaml",
+        "document": 1,
+        "line": 1,
+        "resource": "Pod/intentionally-insecure",
+        "container": "app"
+      },
+      "evidence": {
+        "observed": "tag reference",
+        "expected": "sha256 digest reference"
+      },
+      "control_refs": [
+        "SOC2:CC7",
+        "SLSA:Provenance"
+      ],
+      "external_refs": {
+        "guidance": "https://slsa.dev/spec/"
+      }
+    }
+  ],
+  "suppressed_findings": [
+    {
+      "rule": "CP-K8S-010",
+      "severity": "medium",
+      "target": "demo/Pod/intentionally-insecure",
+      "owner": "team-demo",
+      "reason": "Workload calls the Kubernetes API; reviewed.",
+      "expires": "2999-12-31",
+      "location": {
+        "path": "testdata/insecure/pod.yaml"
+      }
+    }
+  ],
+  "summary": {
+    "critical": 1,
+    "high": 3,
+    "medium": 5,
+    "low": 0,
+    "info": 0
+  },
+  "cluster_scopes": [
+    {
+      "scope": "workloads",
+      "resources": "pods,deployments.apps,statefulsets.apps,daemonsets.apps,replicasets.apps,jobs.batch,cronjobs.batch",
+      "status": "collected"
+    },
+    {
+      "scope": "rbac",
+      "resources": "roles.rbac.authorization.k8s.io,clusterroles.rbac.authorization.k8s.io,rolebindings.rbac.authorization.k8s.io,clusterrolebindings.rbac.authorization.k8s.io",
+      "status": "denied",
+      "detail": "Error from server (Forbidden)"
+    }
+  ]
+}

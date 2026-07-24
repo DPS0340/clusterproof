@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/DPS0340/clusterproof/schemas/compare-v1.schema.json",
+  "title": "ClusterProof comparison contract v1",
+  "description": "Output of `clusterproof compare --format json`. Deterministic classification of two reports; both input hashes identify the exact compared bytes.",
+  "type": "object",
+  "required": ["schema_version", "before_sha256", "after_sha256", "ruleset", "new", "resolved", "severity_changed", "unchanged"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "before_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "after_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "ruleset": { "type": "string", "minLength": 1 },
+    "new": { "type": ["array", "null"] },
+    "resolved": { "type": ["array", "null"] },
+    "severity_changed": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "required": ["finding", "before", "after"],
+        "properties": {
+          "finding": { "type": "object" },
+          "before": { "enum": ["info", "low", "medium", "high", "critical"] },
+          "after": { "enum": ["info", "low", "medium", "high", "critical"] }
+        }
+      }
+    },
+    "unchanged": { "type": "integer", "minimum": 0 }
+  }
+}

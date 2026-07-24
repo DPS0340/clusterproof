@@ -46,6 +46,10 @@ jobs:
           exceptions_schema = json.load(open('schemas/exceptions-v1.schema.json'))
           Draft202012Validator.check_schema(exceptions_schema)
           print('exceptions schema: valid')
+
+          for name in ['schemas/ruleset-v1.schema.json', 'schemas/compare-v1.schema.json', 'schemas/trust-policy-v1.schema.json']:
+              Draft202012Validator.check_schema(json.load(open(name)))
+              print(f'{name}: valid')
           EOF
       - name: Validate live scan output against the report schema
         run: |
@@ -57,4 +61,19 @@ jobs:
           schema = json.load(open('schemas/report-v1.schema.json'))
           Draft202012Validator(schema).validate(json.load(open('/tmp/report.json')))
           print('live report: valid')
+          EOF
+      - name: Validate live ruleset and comparison output against their schemas
+        run: |
+          go run ./cmd/clusterproof ruleset show --format json > /tmp/ruleset.json
+          go run ./cmd/clusterproof scan ./testdata/secure --format json > /tmp/before.json
+          go run ./cmd/clusterproof scan ./testdata/secure --format json > /tmp/after.json
+          go run ./cmd/clusterproof compare --format json /tmp/before.json /tmp/after.json > /tmp/compare.json
+          /tmp/schema-venv/bin/python - <<'EOF'
+          import json
+          from jsonschema import Draft202012Validator
+
+          Draft202012Validator(json.load(open('schemas/ruleset-v1.schema.json'))).validate(json.load(open('/tmp/ruleset.json')))
+          print('live ruleset: valid')
+          Draft202012Validator(json.load(open('schemas/compare-v1.schema.json'))).validate(json.load(open('/tmp/compare.json')))
+          print('live comparison: valid')
           EOF
