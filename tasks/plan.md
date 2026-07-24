@@ -151,7 +151,7 @@ control-plane implementation must not begin before Task 41 is complete.
 - [x] Task 29: Add bounded RBAC relationship analysis.
 - [x] Task 30: Add NetworkPolicy and workload-exposure analysis.
 - [x] Task 31: Add deterministic two-snapshot comparison.
-- [ ] Task 32: Add an experimental bounded OpenReports adapter.
+- [x] Task 32: Add an experimental bounded OpenReports adapter.
 - [ ] Task 33: Performance-test and release v0.5.
 
 ### Checkpoint: Broader read-only cluster posture

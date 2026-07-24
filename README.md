@@ -194,6 +194,14 @@ It imports `fail`, `warn`, and `error` outcomes, omits `pass` and `skip`, and
 deliberately excludes source messages because they can contain sensitive
 runtime details.
 
+An experimental `openreports.io/v1alpha1` adapter accepts `Report` and
+`ClusterReport` JSON through `--openreports-json`. The upstream OpenReports
+API has not reached a stable contract, so the adapter records its own
+version (`experimental-1`) in each finding's `external_refs` and prints an
+experimental notice on use. Semantics match the PolicyReport adapter:
+bounded input, result outcomes only, no CRD installation, no policy-code
+execution, and producer messages are never rendered.
+
 Explicit Trivy enrichment:
 
 ```bash

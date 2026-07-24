@@ -736,6 +736,74 @@ esac
 	}
 }
 
+func TestRunScanImportsOpenReportsExperimentally(t *testing.T) {
+	root := t.TempDir()
+	manifest := `
+apiVersion: v1
+kind: Pod
+metadata: {name: safe}
+spec:
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile: {type: RuntimeDefault}
+  containers:
+    - name: app
+      image: example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        readOnlyRootFilesystem: true
+        capabilities: {drop: [ALL]}
+`
+	if err := os.WriteFile(filepath.Join(root, "pod.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	reportPath := filepath.Join(t.TempDir(), "openreports.json")
+	openReport := `{
+	  "apiVersion": "openreports.io/v1alpha1",
+	  "kind": "Report",
+	  "scope": {"kind": "Pod", "namespace": "default", "name": "safe"},
+	  "results": [{
+	    "policy": "require-owner",
+	    "rule": "owner-label",
+	    "result": "fail",
+	    "severity": "medium",
+	    "source": "kyverno",
+	    "message": "SENSITIVE_MESSAGE"
+	  }]
+	}`
+	if err := os.WriteFile(reportPath, []byte(openReport), 0o600); err != nil {
+		t.Fatalf("write OpenReports file: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"scan", root,
+		"--openreports-json", reportPath,
+		"--format", "json",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "experimental") {
+		t.Fatalf("missing experimental notice: %q", stderr.String())
+	}
+	var scan model.Report
+	if err := json.Unmarshal(stdout.Bytes(), &scan); err != nil {
+		t.Fatalf("invalid JSON output: %v\n%s", err, stdout.String())
+	}
+	if len(scan.Findings) != 1 || scan.Findings[0].Source != "openreports:kyverno" {
+		t.Fatalf("unexpected findings: %#v", scan.Findings)
+	}
+	if len(scan.Inputs) != 2 {
+		t.Fatalf("inputs = %#v, want manifest and OpenReports", scan.Inputs)
+	}
+	if strings.Contains(stdout.String(), "SENSITIVE_MESSAGE") {
+		t.Fatalf("OpenReports message leaked: %s", stdout.String())
+	}
+}
+
 func TestRunCompareDetectsChanges(t *testing.T) {
 	directory := t.TempDir()
 	root := t.TempDir()

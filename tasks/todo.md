@@ -381,13 +381,13 @@ history in a service.
 objects behind an explicit experimental adapter.
 
 **Acceptance criteria:**
-- [ ] Supported API/kind combinations and resource limits are allowlisted.
-- [ ] Import never installs CRDs or executes producer policy code.
-- [ ] Adapter version and input hash are recorded in the report.
+- [x] Supported API/kind combinations and resource limits are allowlisted.
+- [x] Import never installs CRDs or executes producer policy code.
+- [x] Adapter version and input hash are recorded in the report.
 
 **Verification:**
-- [ ] Tests cover current upstream examples, unknown fields/outcomes, lists, and limits.
-- [ ] Existing `wgpolicyk8s.io/v1alpha2` behavior remains unchanged.
+- [x] Tests cover current upstream examples, unknown fields/outcomes, lists, and limits.
+- [x] Existing `wgpolicyk8s.io/v1alpha2` behavior remains unchanged.
 
 **Dependencies:** Tasks 24 and 27
 **Files likely touched:** `internal/openreports/*`, `internal/model/*`, `cmd/clusterproof/*`, `docs/*`

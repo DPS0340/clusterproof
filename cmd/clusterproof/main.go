@@ -19,6 +19,7 @@ import (
 	"github.com/DPS0340/clusterproof/internal/manifest"
 	"github.com/DPS0340/clusterproof/internal/model"
 	"github.com/DPS0340/clusterproof/internal/network"
+	"github.com/DPS0340/clusterproof/internal/openreports"
 	"github.com/DPS0340/clusterproof/internal/policyreport"
 	"github.com/DPS0340/clusterproof/internal/rbac"
 	"github.com/DPS0340/clusterproof/internal/report"
@@ -42,6 +43,7 @@ type scanOptions struct {
 	failOn      string
 	trivyJSON   string
 	policyJSON  string
+	openReports string
 	exceptions  string
 	withTrivy   bool
 }
@@ -431,6 +433,17 @@ func runScan(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		loaded.Inputs = append(loaded.Inputs, imported.Input)
 	}
 
+	if options.openReports != "" {
+		fmt.Fprintln(stderr, "clusterproof: note: the OpenReports adapter is experimental; its contract may change with upstream openreports.io/v1alpha1")
+		imported, err := openreports.Load(options.openReports, openreports.DefaultLimits())
+		if err != nil {
+			fmt.Fprintf(stderr, "clusterproof: import OpenReports JSON: %v\n", err)
+			return 1
+		}
+		findings = append(findings, imported.Findings...)
+		loaded.Inputs = append(loaded.Inputs, imported.Input)
+	}
+
 	if options.trivyJSON != "" {
 		file, err := os.Open(options.trivyJSON)
 		if err != nil {
@@ -548,6 +561,7 @@ func parseScanOptions(args []string) (scanOptions, bool, error) {
 		"--fail-on":            &options.failOn,
 		"--trivy-json":         &options.trivyJSON,
 		"--policy-report-json": &options.policyJSON,
+		"--openreports-json":   &options.openReports,
 		"--exceptions":         &options.exceptions,
 		"--kubeconfig":         &options.kubeconfig,
 		"--context":            &options.context,
@@ -702,6 +716,7 @@ Flags:
   --fail-on SEVERITY         Exit 2 for findings at or above severity
   --trivy-json PATH          Import existing Trivy JSON
   --policy-report-json PATH  Import wgpolicyk8s PolicyReport JSON results
+  --openreports-json PATH    Import openreports.io results (experimental)
   --exceptions PATH          Apply a reviewed repository exception file
   --with-trivy               Explicitly run local Trivy (may update its databases)
   --kubeconfig PATH          Read workloads from the selected cluster
